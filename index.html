@@ -419,7 +419,7 @@
               </p>
             </div>
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-[11px] font-mono text-sky-300 self-start">
-              Limit: 5.00 GB (.apk / .xapk)
+              Limit: 5.00 GB (.apk / .xapk / .apks / .apkm / .zip)
             </span>
           </div>
 
@@ -428,7 +428,7 @@
             id="dropzone"
             class="relative border-2 border-dashed border-slate-700/90 hover:border-emerald-500/60 rounded-2xl p-6 sm:p-8 text-center transition cursor-pointer bg-slate-900/40"
           >
-            <input id="file-input" type="file" accept=".apk,.xapk,.obb" class="hidden" />
+            <input id="file-input" type="file" accept=".apk,.xapk,.apks,.apkm,.zip,.obb" class="hidden" />
             <div class="flex flex-col items-center gap-3">
               <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-sky-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -438,11 +438,11 @@
                 </svg>
               </div>
               <div>
-                <p class="text-sm sm:text-base font-bold text-white">APK, XAPK veya OBB dosyasını buraya sürükleyin</p>
+                <p class="text-sm sm:text-base font-bold text-white">APK, XAPK, APKS, APKM, ZIP veya OBB dosyasını buraya sürükleyin</p>
                 <p class="text-xs text-slate-400 mt-1">veya cihazınızdan seçmek için dokunun • Maksimum 5 GB</p>
               </div>
               <button type="button" id="btn-browse-file" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition">
-                Dosya Seç (.apk / .xapk / .obb)
+                Dosya Seç (.apk / .xapk / .apks / .apkm / .zip / .obb)
               </button>
             </div>
           </div>
@@ -1147,7 +1147,7 @@
       <div id="dl-reattach-box" class="hidden rounded-2xl bg-slate-900/80 border border-dashed border-slate-700 p-3.5 space-y-2">
         <p class="text-xs font-bold text-slate-200">Bu Oyun İçin Yerel Dosyayı Bağla</p>
         <p class="text-[11px] text-slate-400">Cihazınızdaki .apk veya .xapk dosyasını seçerseniz doğrudan kurulum paketi (.zip) ya da orijinal dosya olarak indirebilirsiniz.</p>
-        <input id="dl-reattach-input" type="file" accept=".apk,.xapk" class="hidden" />
+        <input id="dl-reattach-input" type="file" accept=".apk,.xapk,.apks,.apkm,.zip" class="hidden" />
         <button type="button" id="btn-dl-reattach" class="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-xs font-bold text-sky-300 transition">
           Cihazdan APK / XAPK Seç ve Bağla
         </button>
@@ -1438,7 +1438,8 @@
     // Yüklenen gerçek File nesneleri ve Render sunucu indirme adresleri aktif oturumda tutulur
     const sessionFileStore = new Map();
     let renderServerOnline = false;
-    let renderMaxUploadMB = 120;
+    let renderMaxUploadMB = 5120;
+    let renderChunkSizeMB = 8;
 
     // Sanal konteyner simülasyon durumu
     let sandboxAnimFrame = null;
@@ -1456,7 +1457,7 @@
       safe.id = String(safe.id || `recovered-${index}`);
       safe.name = String(safe.name || safe.fileName || 'İsimsiz paket');
       safe.fileName = String(safe.fileName || safe.name);
-      safe.ext = ['APK', 'XAPK', 'APK+OBB'].includes(String(safe.ext).toUpperCase()) ? String(safe.ext).toUpperCase() : 'APK';
+      safe.ext = ['APK', 'XAPK', 'APKS', 'APKM', 'ZIP', 'APK+OBB'].includes(String(safe.ext).toUpperCase()) ? String(safe.ext).toUpperCase() : 'APK';
       safe.sizeMB = Number.isFinite(Number(safe.sizeMB)) && Number(safe.sizeMB) >= 0 ? Number(safe.sizeMB) : 0;
       safe.legacyAndroid = String(safe.legacyAndroid || 'Bilinmiyor');
       safe.legacyApi = Number.isFinite(Number(safe.legacyApi)) ? Number(safe.legacyApi) : 0;
@@ -2041,10 +2042,12 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         renderServerOnline = true;
-        renderMaxUploadMB = Number(data.maxUploadMB) || 120;
+        renderMaxUploadMB = Number(data.maxUploadMB) || 5120;
+        renderChunkSizeMB = Number(data.chunkSizeMB) || 8;
+        const limitLabel = renderMaxUploadMB >= 1024 ? `${(renderMaxUploadMB / 1024).toFixed(1)} GB` : `${renderMaxUploadMB} MB`;
         updateRenderStatusUI(
           'online',
-          `Bağlı: ${data.engine || 'Render API'} • Sunucu tekil APK limiti: ${renderMaxUploadMB} MB • Keystore: ${data.keystoreReady ? 'Hazır' : 'Yok'}`
+          `Bağlı: ${data.engine || 'Render API'} • Limit: ${limitLabel} (${renderChunkSizeMB} MB parçalı) • Hızlı Binary AXML ✓`
         );
         if (showNotification) showToast('Render APK sunucusu aktif ve hazır!', 'success');
         return true;
@@ -2069,49 +2072,81 @@
       document.getElementById('render-upload-bar').style.width = `${Math.min(100, Math.max(0, pct))}%`;
     }
 
-    function uploadApkToRenderForAnalysis(file) {
-      return new Promise((resolve, reject) => {
-        const base = getRenderApiBase();
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${base}/api/analyze`);
-        xhr.timeout = 180000;
+    async function uploadApkToRenderForAnalysis(file) {
+      const base = getRenderApiBase();
+      const chunkBytes = Math.max(2, renderChunkSizeMB || 8) * 1024 * 1024;
+      const totalSize = file.size;
+      const totalChunks = Math.max(1, Math.ceil(totalSize / chunkBytes));
 
-        xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) {
-            const pct = (ev.loaded / ev.total) * 100;
-            setRenderUploadProgress(true, `APK sunucuya aktarılıyor (${formatSizeFromMB(ev.loaded / 1048576)})...`, pct);
-          }
-        };
+      try {
+        // 1) Parçalı yükleme oturumu başlat
+        setRenderUploadProgress(true, 'Render yükleme oturumu açılıyor...', 1);
+        const initFd = new FormData();
+        initFd.append('fileName', file.name);
+        initFd.append('totalSize', String(totalSize));
 
-        xhr.onload = () => {
-          setRenderUploadProgress(false);
-          try {
-            const data = JSON.parse(xhr.responseText || '{}');
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(data);
-            } else {
-              reject(new Error(data.detail || `Sunucu hatası (HTTP ${xhr.status})`));
+        const initRes = await fetch(`${base}/api/upload/init`, { method: 'POST', body: initFd });
+        const initData = await initRes.json().catch(() => ({}));
+        if (!initRes.ok) {
+          throw new Error(initData.detail || `Oturum başlatılamadı (HTTP ${initRes.status})`);
+        }
+        const jobId = initData.jobId;
+
+        // 2) Dosyayı 8 MB parçalar halinde sırayla aktar (668 MB - 5 GB proxy & RAM dostu)
+        let uploadedBytes = 0;
+        for (let idx = 0; idx < totalChunks; idx++) {
+          const start = idx * chunkBytes;
+          const end = Math.min(totalSize, start + chunkBytes);
+          const slice = file.slice(start, end);
+
+          let chunkOk = false;
+          let lastErr = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const cfd = new FormData();
+              cfd.append('jobId', jobId);
+              cfd.append('chunkIndex', String(idx));
+              cfd.append('chunk', slice, `chunk_${idx}.part`);
+
+              const cres = await fetch(`${base}/api/upload/chunk`, { method: 'POST', body: cfd });
+              if (!cres.ok) {
+                const cdata = await cres.json().catch(() => ({}));
+                throw new Error(cdata.detail || `Parça ${idx + 1} hatası (HTTP ${cres.status})`);
+              }
+              chunkOk = true;
+              break;
+            } catch (err) {
+              lastErr = err;
+              await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
             }
-          } catch (e) {
-            reject(new Error(`Beklenmeyen sunucu yanıtı (HTTP ${xhr.status})`));
           }
-        };
+          if (!chunkOk) throw lastErr || new Error('Parça aktarımı başarısız.');
 
-        xhr.onerror = () => {
-          setRenderUploadProgress(false);
-          reject(new Error('Ağ bağlantısı kesildi veya CORS engeli oluştu.'));
-        };
+          uploadedBytes = end;
+          const pct = Math.min(95, (uploadedBytes / totalSize) * 95);
+          setRenderUploadProgress(
+            true,
+            `Parçalı yükleme: ${formatSizeFromMB(uploadedBytes / 1048576)} / ${formatSizeFromMB(totalSize / 1048576)} (${idx + 1}/${totalChunks})`,
+            pct
+          );
+        }
 
-        xhr.ontimeout = () => {
-          setRenderUploadProgress(false);
-          reject(new Error('Yükleme zaman aşımına uğradı.'));
-        };
-
-        const fd = new FormData();
-        fd.append('file', file);
-        setRenderUploadProgress(true, 'Render sunucusuna bağlantı açılıyor...', 2);
-        xhr.send(fd);
-      });
+        // 3) Sunucuda aapt + XAPK/ABI analizini tamamla
+        setRenderUploadProgress(true, 'Sunucuda APK / XAPK manifest ve ABI analizi yapılıyor...', 97);
+        const finFd = new FormData();
+        finFd.append('jobId', jobId);
+        const finRes = await fetch(`${base}/api/upload/finish`, { method: 'POST', body: finFd });
+        const finData = await finRes.json().catch(() => ({}));
+        if (!finRes.ok) {
+          throw new Error(finData.detail || `Analiz tamamlanamadı (HTTP ${finRes.status})`);
+        }
+        setRenderUploadProgress(true, 'Gerçek sunucu analizi tamamlandı!', 100);
+        setTimeout(() => setRenderUploadProgress(false), 700);
+        return finData;
+      } catch (err) {
+        setRenderUploadProgress(false);
+        throw err;
+      }
     }
 
     async function handleRealFile(file) {
@@ -2123,6 +2158,8 @@
       const lower = fileName.toLowerCase();
       const isApk = lower.endsWith('.apk');
       const isXapk = lower.endsWith('.xapk');
+      const isSplitContainer = lower.endsWith('.apks') || lower.endsWith('.apkm') || lower.endsWith('.zip');
+      const isContainerLike = isXapk || isSplitContainer;
       const isObb = lower.endsWith('.obb');
 
       if (isObb) {
@@ -2143,12 +2180,12 @@
         return;
       }
 
-      if (!isApk && !isXapk) {
+      if (!isApk && !isContainerLike) {
         showUploadError(
           'Desteklenmeyen Dosya Uzantısı',
-          `"${fileName}" geçerli bir Android paketi değil. Lütfen yalnızca .apk veya .xapk uzantılı dosyalar yükleyin.`
+          `"${fileName}" geçerli bir Android paketi değil. Desteklenen biçimler: .apk, .xapk, .apks, .apkm, .zip ve .obb`
         );
-        showToast('APK, XAPK ve eşleştirilmiş OBB dosyaları desteklenir.', 'error');
+        showToast('Desteklenen biçimler: APK, XAPK, APKS, APKM, ZIP ve OBB.', 'error');
         return;
       }
 
@@ -2188,11 +2225,15 @@
       }
 
       const cleanTitle = fileName
-        .replace(/\.(xapk|apk)$/i, '')
+        .replace(/\.(xapk|apks|apkm|zip|apk)$/i, '')
         .replace(/[_\-.]+/g, ' ')
-        .trim() || 'Özel Eski Oyun';
+        .trim() || 'Özel Oyun Paketi';
 
-      const ext = isXapk ? 'XAPK' : 'APK';
+      const ext = isXapk ? 'XAPK'
+        : lower.endsWith('.apks') ? 'APKS'
+        : lower.endsWith('.apkm') ? 'APKM'
+        : lower.endsWith('.zip') ? 'ZIP'
+        : 'APK';
       const customId = 'custom-' + Date.now();
       sessionFileStore.set(customId, { singleFile: file });
 
@@ -2202,12 +2243,12 @@
         fileName: fileName,
         ext: ext,
         sizeMB: Math.max(sizeMB, 0.01),
-        legacyAndroid: isXapk ? 'Android 4.4' : 'Android 4.0',
-        legacyApi: isXapk ? 19 : 14,
+        legacyAndroid: isContainerLike ? 'Android 4.4' : 'Android 4.0',
+        legacyApi: isContainerLike ? 19 : 14,
         arch: 'ARMv7a (32-bit)',
-        hasObb: isXapk,
-        genre: isXapk ? 'fps' : 'arcade',
-        accent: isXapk ? 'emerald' : 'sky',
+        hasObb: isContainerLike,
+        genre: isContainerLike ? 'fps' : 'arcade',
+        accent: isContainerLike ? 'emerald' : 'sky',
         signature: signatureText,
         isValidPK: isValidPK,
         isRealFile: true,
@@ -2217,35 +2258,49 @@
         serverWarnings: []
       };
 
-      // Render sunucusu aktifse ve dosya .apk + sunucu boyutu icindeyse gercek aapt analizi yap
-      if (isApk && isValidPK && renderServerOnline && sizeMB <= renderMaxUploadMB) {
-        try {
-          const srv = await uploadApkToRenderForAnalysis(file);
-          analyzedPkg.serverJobId = srv.jobId;
-          analyzedPkg.packageId = srv.packageId || analyzedPkg.packageId;
-          if (srv.appLabel) analyzedPkg.name = srv.appLabel;
-          analyzedPkg.legacyApi = srv.targetSdk || srv.minSdk || analyzedPkg.legacyApi;
-          analyzedPkg.legacyAndroid = srv.targetSdk ? `targetSdk ${srv.targetSdk} (min ${srv.minSdk || '?'})` : analyzedPkg.legacyAndroid;
-          analyzedPkg.arch = Array.isArray(srv.abis) ? srv.abis.join(', ') : analyzedPkg.arch;
-          analyzedPkg.is32BitOnly = Boolean(srv.is32BitOnly);
-          analyzedPkg.serverWarnings = Array.isArray(srv.warnings) ? srv.warnings : [];
-          analyzedPkg.signature = `${signatureText} • Render Analiz ✓`;
-
-          sessionFileStore.set(customId, {
-            singleFile: file,
-            serverJobId: srv.jobId
-          });
-          selectPackageForPatching(analyzedPkg);
-          showToast(`Render sunucusunda gerçek APK analizi tamamlandı: ${analyzedPkg.packageId}`, 'success');
-          return;
-        } catch (err) {
-          console.warn('Render analizi başarısız, yerel moda dönülüyor:', err);
-          analyzedPkg.serverWarnings = [`Render analizi yapılamadı (${err.message}). Yerel modda devam ediliyor.`];
+      // Render sunucusu aktifse (veya uyanabilirse) .apk ve .xapk dosyalarını 8 MB parçalarla sunucuda gerçek analiz et
+      if ((isApk || isContainerLike) && isValidPK) {
+        if (!renderServerOnline && (getRenderApiBase() || window.location.protocol.startsWith('http'))) {
+          await checkRenderServer(false);
         }
-      } else if (isApk && renderServerOnline && sizeMB > renderMaxUploadMB) {
-        analyzedPkg.serverWarnings = [
-          `Bu APK (${formatSizeFromMB(sizeMB)}) Render sunucusunun tekil limitini (${renderMaxUploadMB} MB) aşıyor. Yerel modda incelenebilir.`
-        ];
+        if (renderServerOnline && sizeMB <= renderMaxUploadMB) {
+          try {
+            const srv = await uploadApkToRenderForAnalysis(file);
+            analyzedPkg.serverJobId = srv.jobId;
+            analyzedPkg.packageId = srv.packageId || analyzedPkg.packageId;
+            if (srv.appLabel) analyzedPkg.name = srv.appLabel;
+            analyzedPkg.legacyApi = srv.targetSdk || srv.minSdk || analyzedPkg.legacyApi;
+            analyzedPkg.legacyAndroid = srv.targetSdk
+              ? `targetSdk ${srv.targetSdk} (min ${srv.minSdk || '?'})`
+              : analyzedPkg.legacyAndroid;
+            analyzedPkg.arch = Array.isArray(srv.abis) ? srv.abis.join(', ') : analyzedPkg.arch;
+            analyzedPkg.is32BitOnly = Boolean(srv.is32BitOnly);
+            analyzedPkg.hasObb = Boolean(analyzedPkg.hasObb || (srv.obbFiles && srv.obbFiles.length > 0));
+            analyzedPkg.serverWarnings = Array.isArray(srv.warnings) ? srv.warnings : [];
+            analyzedPkg.signature = `${signatureText} • Render Analiz ✓`;
+
+            sessionFileStore.set(customId, {
+              singleFile: file,
+              serverJobId: srv.jobId
+            });
+            selectPackageForPatching(analyzedPkg);
+            showToast(`Render sunucusunda gerçek analiz tamamlandı: ${analyzedPkg.packageId}`, 'success');
+            return;
+          } catch (err) {
+            console.warn('Render analizi başarısız, yerel moda dönülüyor:', err);
+            analyzedPkg.serverWarnings = [
+              `Render sunucu aktarımı başarısız: ${err.message}. Şu an yerel moddasınız — dosya henüz yamalanmadı.`
+            ];
+          }
+        } else if (!renderServerOnline) {
+          analyzedPkg.serverWarnings = [
+            'Render sunucusu şu an bağlı değil. Gerçek APK yamalamak ve imzalamak için üstteki "Bağlantıyı Test Et / Uyandır" butonuna basıp dosyayı tekrar seçin.'
+          ];
+        } else if (sizeMB > renderMaxUploadMB) {
+          analyzedPkg.serverWarnings = [
+            `Dosya (${formatSizeFromMB(sizeMB)}) sunucu limitini (${renderMaxUploadMB} MB) aşıyor.`
+          ];
+        }
       }
 
       selectPackageForPatching(analyzedPkg);
@@ -2447,7 +2502,14 @@
           fileName: data.fileName,
           sizeBytes: data.sizeBytes,
           verified: data.verified,
-          targetSdk: data.targetSdk
+          targetSdk: data.targetSdk,
+          is32BitOnly: Boolean(data.is32BitOnly),
+          splitBundle: data.splitBundle
+            ? { ...data.splitBundle, fullUrl: `${base}${data.splitBundle.downloadUrl}` }
+            : null,
+          obbDownloads: Array.isArray(data.obbDownloads)
+            ? data.obbDownloads.map(o => ({ ...o, fullUrl: `${base}${o.downloadUrl}` }))
+            : []
         };
       } else {
         // YEREL TARAYICI SİMÜLASYON MODU
@@ -2520,6 +2582,9 @@
         nextEntry.serverFileName = serverSignedResult.fileName;
         nextEntry.serverVerified = serverSignedResult.verified;
         nextEntry.serverTargetSdk = serverSignedResult.targetSdk;
+        nextEntry.serverIs32BitOnly = serverSignedResult.is32BitOnly;
+        nextEntry.serverSplitBundle = serverSignedResult.splitBundle || null;
+        nextEntry.serverObbDownloads = serverSignedResult.obbDownloads || [];
       }
       if (Object.keys(nextEntry).length > 0) {
         sessionFileStore.set(newGame.id, nextEntry);
@@ -2726,11 +2791,28 @@
         .replace(/[^a-z0-9._-]+/g, '_');
 
       if (entry && entry.serverDownloadUrl) {
+        if (entry.serverSplitBundle) {
+          addOptionBtn({
+            title: `Tüm Parçalı (Split) İmzalı Paketi İndir (.apks)`,
+            subtitle: `${entry.serverSplitBundle.name} (${formatSizeFromMB((entry.serverSplitBundle.sizeBytes || 0) / 1048576)}) • Tüm Split APK'lar aynı anahtarla imzalandı (ZArchiver / SAI ile kurun)`,
+            badge: 'İMZALI APKS',
+            accent: 'emerald',
+            onClick: () => {
+              const a = document.createElement('a');
+              a.href = entry.serverSplitBundle.fullUrl;
+              a.download = entry.serverSplitBundle.name;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              showToast(`${entry.serverSplitBundle.name} cihazınıza indiriliyor...`, 'success');
+            }
+          });
+        }
         addOptionBtn({
-          title: `Render İmzalı & Doğrulanmış APK İndir (.apk)`,
-          subtitle: `${entry.serverFileName || game.fileName} • API ${entry.serverTargetSdk || 28} • v1/v2/v3 İmza Doğrulandı ✓ (Kurmadan önce eski sürümü kaldırın)`,
+          title: entry.serverSplitBundle ? `Yalnızca Ana APK'yı İndir (.apk)` : `Render İmzalı & Doğrulanmış APK İndir (.apk)`,
+          subtitle: `${entry.serverFileName || game.fileName} • API ${entry.serverTargetSdk || 28} • v1/v2/v3 İmza Doğrulandı ✓${entry.serverIs32BitOnly ? ' • Yalnızca 32-bit paket!' : ''}`,
           badge: 'İMZALI APK',
-          accent: 'emerald',
+          accent: entry.serverSplitBundle ? 'sky' : 'emerald',
           onClick: () => {
             const a = document.createElement('a');
             a.href = entry.serverDownloadUrl;
@@ -2741,6 +2823,25 @@
             showToast(`${entry.serverFileName || 'İmzalı APK'} cihazınıza indiriliyor...`, 'success');
           }
         });
+        if (Array.isArray(entry.serverObbDownloads)) {
+          entry.serverObbDownloads.forEach(obb => {
+            addOptionBtn({
+              title: `XAPK İçinden Çıkan OBB Dosyasını İndir`,
+              subtitle: `${obb.name} (${formatSizeFromMB((obb.sizeBytes || 0) / 1048576)}) → /Android/obb/${game.packageId}/ içine taşıyın`,
+              badge: '.OBB',
+              accent: 'violet',
+              onClick: () => {
+                const a = document.createElement('a');
+                a.href = obb.fullUrl;
+                a.download = obb.name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                showToast(`${obb.name} indiriliyor...`, 'info');
+              }
+            });
+          });
+        }
       }
 
       if (entry && entry.apkFile && entry.obbFile) {

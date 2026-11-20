@@ -1,27 +1,27 @@
-RetroDroid Compat — Render Docker Sunucu Paketi (v4.3)
-======================================================
+RetroDroid Compat — Genel Amaçlı Render Sunucu Paketi (v4.5)
+============================================================
 
-Bu paketteki dosyalar:
-1. Dockerfile        -> Java 17 + apktool + aapt + zipalign + apksigner + keystore
-2. requirements.txt  -> FastAPI, Uvicorn, python-multipart
-3. server.py         -> Gercek APK analiz, targetSdk (varsayilan API 28), android:exported,
-                        resources.arsc STORE (sikistirmasiz), zipalign ve v1/v2/v3 apksigner verify
-4. index.html        -> Render sunucusuna dogrudan bagli RetroDroid Compat arayuzu
+Bu paket belirli tek bir oyun için değil, yüklediğin TÜM Android uygulama ve
+oyun paketleri için genel olarak çalışır.
 
-RENDER'A YUKLEME ADIMLARI:
-1) Bu ZIP icindeki 4 dosyayi (Dockerfile, requirements.txt, server.py, index.html)
-   GitHub deponun ana dizinine (eski dosyalarin uzerine) yukle.
-2) Render panelinde servisine girip "Manual Deploy" -> "Clear build cache & deploy" de.
-3) Deploy bitince telefonunun Chrome tarayicisindan dogrudan Render adresini ac:
-   https://<senin-servisin>.onrender.com
-4) Ustteki yesil "Render Aktif" rozetini gorunce .apk dosyani sec,
-   Hedef API olarak "API 28 (Onerilen)" secili kalsin ve "Uyumlu Hale Getir"e bas.
-5) Islem bitince "Dosyayi Cihaza Indir" -> "Render Imzali & Dogrulanmis APK Indir" ile kur.
+Desteklenen Biçimler (5 GB'a kadar, 8 MB parçalı yükleme):
+- .apk   (Tekil klasik ve modern APK paketleri)
+- .xapk  (APK + OBB veya çoklu Split APK içeren XAPK paketleri)
+- .apks / .apkm / .zip (Parçalı Split APK veya APK+OBB arşivleri)
 
-"PAKET GECERSIZ GORUNDUGUNDEN UYGULAMA YUKLENEMEDI" HATASINI ONLEME:
-- Oyunun eski/orijinal surumu telefonda yukluyse kurmadan once mutlaka kaldir.
-- API 28 (Android 9) secenegi Android 14/15/16 engelini asar ve eski oyunlari bozmaz.
-- Yine de hata verirse "Yalnizca Hizala & Imzala (Guvenli Mod)" secenegini dene.
-- Analiz kartinda "Yalnizca 32-bit (ARMv7a)" uyarisi cikiyorsa ve telefonun yalnizca
-  64-bit destekliyorsa (Snapdragon 8 Gen 3/Elite, Pixel 7+), Android bu oyunu donanimsal
-  olarak kurmaya izin vermez.
+Tüm Yüklenen Dosyalar İçin Otomatik İşlem Akışı:
+1. 8 MB parçalarla sunucuya güvenli yükleme (büyük dosyalarda kopma ve RAM taşması olmaz).
+2. Gerçek aapt analizi: Paket kimliği (packageId), minSdk, targetSdk, ABI (32/64-bit) ve OBB tespiti.
+3. Evrensel TargetSDK yükseltme (varsayılan API 28):
+   - Manifestte targetSdkVersion varsa 4 baytlık hızlı Binary AXML yaması (< 10 ms, < 1 MB RAM).
+   - Çok eski APK'larda targetSdkVersion hiç yoksa veya API 31+ (android:exported) seçildiyse,
+     dev assets/lib dosyalarını RAM'e almadan yalnızca hafif manifest kopyası (slim apktool) derlenir.
+4. Akışlı (1 MB streaming) ZIP yeniden yazma: eski META-INF temizlenir, resources.arsc ve .so
+   dosyaları Android 11+ kuralına uygun şekilde STORE (sıkıştırmasız) kaydedilir.
+5. zipalign -f -p 4 + apksigner v1/v2/v3 imzalama + apksigner verify doğrulaması.
+6. Split APK içeren paketlerde tüm parçalar AYNI anahtarla imzalanıp kurulabilir .apks paketi üretilir.
+
+RENDER'A YÜKLEME:
+1) Dockerfile, requirements.txt, server.py ve index.html dosyalarını GitHub depona yükle.
+2) Render panelinde "Manual Deploy -> Clear build cache & deploy" yap.
+3) Telefonundan Chrome ile https://<senin-servisin>.onrender.com adresini aç.
