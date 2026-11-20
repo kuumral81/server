@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: retrodroid-compat
+    runtime: docker
+    region: frankfurt
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: MAX_UPLOAD_MB
+        value: "150"

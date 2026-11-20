@@ -1,0 +1,3586 @@
+<!DOCTYPE html>
+<html lang="tr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RetroDroid Compat — Eski Oyun Uyumluluk Simülatörü</title>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            void: '#0b0f17',
+            surface: '#111827',
+            emeraldNeon: '#10b981',
+            electricBlue: '#0ea5e9',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Temel koyu tema ve kaydırma çubuğu stilleri */
+    :root {
+      color-scheme: dark;
+    }
+
+    body {
+      background-color: #060911;
+      color: #f1f5f9;
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+
+    /* Cam efektli kartlar (Glassmorphism) */
+    .glass-card {
+      background: linear-gradient(145deg, rgba(19, 27, 46, 0.78), rgba(11, 15, 23, 0.88));
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .glass-card-hover {
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .glass-card-hover:hover {
+      border-color: rgba(16, 185, 129, 0.35);
+      box-shadow: 0 12px 30px -10px rgba(16, 185, 129, 0.15);
+    }
+
+    /* Neon parlama vurguları */
+    .neon-btn {
+      background: linear-gradient(135deg, #10b981 0%, #0ea5e9 100%);
+      box-shadow: 0 6px 24px -4px rgba(16, 185, 129, 0.45);
+      transition: all 0.2s ease;
+    }
+
+    .neon-btn:hover:not(:disabled) {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 28px -4px rgba(14, 165, 233, 0.55);
+    }
+
+    .neon-btn:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .neon-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Özel ince kaydırma çubuğu */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.4);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(71, 85, 105, 0.6);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(16, 185, 129, 0.6);
+    }
+
+    /* Özel Toggle Anahtarı */
+    .toggle-checkbox:checked + .toggle-track {
+      background: linear-gradient(135deg, #10b981, #0ea5e9);
+      border-color: rgba(16, 185, 129, 0.6);
+    }
+    .toggle-checkbox:checked + .toggle-track .toggle-thumb {
+      transform: translateX(20px);
+      background-color: #ffffff;
+    }
+
+    /* Sürükle-Bırak aktif vurgusu */
+    .dropzone-active {
+      border-color: #10b981 !important;
+      background: rgba(16, 185, 129, 0.08) !important;
+      box-shadow: inset 0 0 30px rgba(16, 185, 129, 0.15);
+    }
+
+    /* Sanal Konteyner CRT / Scanline hafif katmanı */
+    .scanlines {
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0),
+        rgba(255, 255, 255, 0) 50%,
+        rgba(0, 0, 0, 0.16) 50%,
+        rgba(0, 0, 0, 0.16)
+      );
+      background-size: 100% 4px;
+    }
+
+    /* Sekme geçiş animasyonu */
+    @keyframes fadeSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .tab-animate {
+      animation: fadeSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Sanal Gamepad tuş aktif efekti */
+    .vpad-btn {
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      transition: transform 0.08s ease, background-color 0.08s ease, border-color 0.08s ease;
+    }
+    .vpad-btn:active,
+    .vpad-btn.pressed {
+      transform: scale(0.92);
+      background-color: rgba(16, 185, 129, 0.45) !important;
+      border-color: rgba(16, 185, 129, 0.9) !important;
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.5);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-center md:py-5 md:px-4 selection:bg-emerald-500/30 selection:text-emerald-200">
+
+  <!-- Arka Plan Ortam Parlamaları (Masaüstünde şık derinlik) -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <div class="absolute -top-32 -left-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]"></div>
+    <div class="absolute -bottom-32 -right-24 w-[28rem] h-[28rem] bg-sky-500/10 rounded-full blur-[130px]"></div>
+  </div>
+
+  <!-- ANA ANDROID UYGULAMA ÇERÇEVESİ -->
+  <div id="app-shell" class="relative z-10 w-full max-w-5xl min-h-screen md:min-h-0 md:h-[90vh] md:max-h-[920px] bg-[#0b0f17] md:rounded-[30px] md:border md:border-slate-800/90 md:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden">
+
+    <!-- Masaüstü İçin Şık Android Sistem Durum Çubuğu -->
+    <div class="hidden md:flex items-center justify-between px-6 py-2 bg-[#080b12] border-b border-slate-800/60 text-[11px] font-medium text-slate-400 select-none">
+      <div class="flex items-center gap-3">
+        <span id="status-clock" class="font-mono text-slate-300 font-semibold">15:12</span>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">
+          RetroDroid Engine v4.2
+        </span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="flex items-center gap-1 text-sky-400">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          ARM64-v8a / Vulkan
+        </span>
+        <span class="text-slate-600">|</span>
+        <span class="flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 11v2"/><rect x="4" y="9" width="12" height="6" rx="1" fill="currentColor" stroke="none"/>
+          </svg>
+          94%
+        </span>
+      </div>
+    </div>
+
+    <!-- ÜST UYGULAMA BAŞLIĞI (APP BAR) -->
+    <header class="shrink-0 px-4 sm:px-6 py-3.5 bg-[#0b0f17]/90 backdrop-blur-xl border-b border-slate-800/80 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <!-- RetroDroid Özel SVG Logosu -->
+        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-sky-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+          <svg class="w-6 h-6 text-emerald-400" viewBox="0 0 24 24" fill="none">
+            <path d="M7.5 8.5L5.8 5.8M16.5 8.5L18.2 5.8" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M4.5 14C4.5 10.4 7.7 7.5 12 7.5C16.3 7.5 19.5 10.4 19.5 14V16.5C19.5 18.2 18.2 19.5 16.5 19.5H7.5C5.8 19.5 4.5 18.2 4.5 16.5V14Z" fill="rgba(16,185,129,0.16)" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M8.5 14H11.5M10 12.5V15.5" stroke="#34d399" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="15" cy="13.2" r="1" fill="#38bdf8"/>
+            <circle cx="16.5" cy="14.8" r="1" fill="#34d399"/>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white truncate">
+              RetroDroid <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">Compat</span>
+            </h1>
+            <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/25">
+              APK / XAPK
+            </span>
+          </div>
+          <p class="text-[11px] sm:text-xs text-slate-400 truncate">Eski Oyun Uyumluluk Motoru • Maks. 5 GB</p>
+        </div>
+      </div>
+
+      <!-- Sağ Üst Hızlı Bilgi Rozetleri -->
+      <div class="flex items-center gap-2 shrink-0">
+        <button onclick="switchTab('patcher')" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/25 text-xs font-semibold transition">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+          Paket Ekle
+        </button>
+        <button type="button" id="header-server-pill" onclick="switchTab('system')" title="Render Sunucu Durumu" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] font-medium text-slate-300 transition">
+          <span id="header-server-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="header-server-label" class="hidden sm:inline">Sunucu...</span>
+        </button>
+        <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-medium text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="header-profile-badge">Maks. Uyum</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ANA KAYDIRILABİLİR İÇERİK ALANI -->
+    <main id="main-content" class="flex-1 overflow-y-auto px-4 sm:px-6 pt-5 pb-28 space-y-6">
+
+      <!-- =================================================================== -->
+      <!-- SEKME 1: OYUN KÜTÜPHANESİ VE BAŞLATICI                              -->
+      <!-- =================================================================== -->
+      <section id="tab-library" class="tab-section tab-animate space-y-5">
+        <!-- Üst Özet Kartları -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="glass-card rounded-2xl p-3.5 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="6" width="20" height="12" rx="4"/><path d="M6 12h4M8 10v4"/><circle cx="15" cy="11" r="1" fill="currentColor"/><circle cx="17.5" cy="13" r="1" fill="currentColor"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-[11px] text-slate-400 font-medium">Uyumlu Oyunlar</p>
+              <p id="stat-game-count" class="text-lg font-extrabold text-white">0</p>
+            </div>
+          </div>
+
+          <div class="glass-card rounded-2xl p-3.5 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-500/15 text-sky-400 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-[11px] text-slate-400 font-medium">Sanal Depolama</p>
+              <p id="stat-total-size" class="text-lg font-extrabold text-white">0 GB</p>
+            </div>
+          </div>
+
+          <div class="glass-card rounded-2xl p-3.5 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-violet-500/15 text-violet-400 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-[11px] text-slate-400 font-medium">32→64 Bit Köprü</p>
+              <p class="text-sm font-bold text-emerald-400">Aktif (JIT)</p>
+            </div>
+          </div>
+
+          <div class="glass-card rounded-2xl p-3.5 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-[11px] text-slate-400 font-medium">Maks. Paket Limiti</p>
+              <p class="text-lg font-extrabold text-white">5.0 GB</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Arama ve Filtre Çubuğu -->
+        <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+          <div class="relative flex-1">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/>
+            </svg>
+            <input
+              id="library-search"
+              type="text"
+              placeholder="Kütüphanede oyun, sürüm veya paket ara..."
+              class="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 focus:border-emerald-500/60 focus:outline-none text-sm text-slate-100 placeholder-slate-500 transition"
+            />
+          </div>
+
+          <div id="library-filters" class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <button data-filter="ALL" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 whitespace-nowrap transition">
+              Tümü
+            </button>
+            <button data-filter="XAPK" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-700 whitespace-nowrap transition">
+              XAPK (+OBB)
+            </button>
+            <button data-filter="APK" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-700 whitespace-nowrap transition">
+              APK
+            </button>
+            <button data-filter="BRIDGE" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-700 whitespace-nowrap transition">
+              32-bit Köprü
+            </button>
+          </div>
+        </div>
+
+        <!-- Oyun Kartları Grid Alanı -->
+        <div id="library-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- JS ile dinamik olarak doldurulur -->
+        </div>
+
+        <!-- Boş Kütüphane Durumu -->
+        <div id="library-empty" class="hidden glass-card rounded-3xl p-8 text-center space-y-4">
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-800/80 flex items-center justify-center text-slate-500">
+            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+              <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Eşleşen oyun bulunamadı</h3>
+            <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              Yeni bir eski APK veya XAPK paketi yükleyip uyumluluk motoruyla modern Android'e uyarlayabilirsiniz.
+            </p>
+          </div>
+          <button onclick="switchTab('patcher')" class="neon-btn px-5 py-2.5 rounded-xl text-xs font-bold text-slate-950 inline-flex items-center gap-2">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Yükle & Yamala Ekranına Git
+          </button>
+        </div>
+      </section>
+
+      <!-- =================================================================== -->
+      <!-- SEKME 2: APK & XAPK YÜKLEME, DOĞRULAMA VE UYUMLULUK YAMALAYICI      -->
+      <!-- =================================================================== -->
+      <section id="tab-patcher" class="tab-section hidden tab-animate space-y-5">
+
+        <!-- Bölüm 1: Dosya Yükleme ve Binary İmza Doğrulama -->
+        <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <span class="w-2 h-5 rounded-full bg-gradient-to-b from-emerald-400 to-sky-400"></span>
+                APK & XAPK Paket Analizi
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5">
+                5 GB (5120 MB) sınırına kadar paketleri tarayıcıyı dondurmadan bayt başlığı (PK Header) ile doğrular.
+              </p>
+            </div>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-[11px] font-mono text-sky-300 self-start">
+              Limit: 5.00 GB (.apk / .xapk)
+            </span>
+          </div>
+
+          <!-- Sürükle & Bırak Alanı -->
+          <div
+            id="dropzone"
+            class="relative border-2 border-dashed border-slate-700/90 hover:border-emerald-500/60 rounded-2xl p-6 sm:p-8 text-center transition cursor-pointer bg-slate-900/40"
+          >
+            <input id="file-input" type="file" accept=".apk,.xapk,.obb" class="hidden" />
+            <div class="flex flex-col items-center gap-3">
+              <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-sky-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke-linecap="round"/>
+                  <polyline points="17 8 12 3 7 8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <line x1="12" y1="3" x2="12" y2="15" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm sm:text-base font-bold text-white">APK, XAPK veya OBB dosyasını buraya sürükleyin</p>
+                <p class="text-xs text-slate-400 mt-1">veya cihazınızdan seçmek için dokunun • Maksimum 5 GB</p>
+              </div>
+              <button type="button" id="btn-browse-file" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition">
+                Dosya Seç (.apk / .xapk / .obb)
+              </button>
+            </div>
+          </div>
+
+          <!-- APK + OBB Eşleştirme ve Dışa Aktarma -->
+          <div class="rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4 space-y-3">
+            <div>
+              <h3 class="text-sm font-bold text-white">APK + OBB Birlikte Ekle</h3>
+              <p class="text-xs text-slate-400 mt-1">APK ve OBB dosyalarını ayrı ayrı seçin. OBB, Android/obb/Paket.Adı/ klasörüne doğru adla yerleştirilerek ZIP paketi hazırlanır.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label class="block text-xs text-slate-300">APK dosyası
+                <input id="pair-apk-input" type="file" accept=".apk" class="mt-1 block w-full text-xs text-slate-400 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-slate-200"/>
+              </label>
+              <label class="block text-xs text-slate-300">OBB dosyası
+                <input id="pair-obb-input" type="file" accept=".obb" class="mt-1 block w-full text-xs text-slate-400 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-slate-200"/>
+              </label>
+            </div>
+            <label class="block text-xs text-slate-300">Android paket kimliği (package name)
+              <input id="pair-package-id" type="text" value="" placeholder="ör. com.oyun.studio" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2.5 text-sm text-white placeholder-slate-500"/>
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" id="btn-pair-analyze" class="px-4 py-2.5 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-200 text-xs font-bold">APK + OBB Eşleştir</button>
+              <button type="button" id="btn-pair-export" disabled class="px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs font-bold disabled:opacity-40">Kurulum klasörünü ZIP indir</button>
+            </div>
+            <p id="pair-status" class="text-xs text-slate-400" aria-live="polite">Henüz dosya seçilmedi. OBB dosyası yeniden yazılmaz; doğru Android/obb dizinine yerleştirilir.</p>
+          </div>
+
+          <!-- Hata Uyarı Kutusu (Örn: >5 GB veya geçersiz uzantı) -->
+          <div id="upload-error-box" class="hidden rounded-2xl bg-rose-500/10 border border-rose-500/35 p-4 flex items-start gap-3">
+            <svg class="w-5 h-5 text-rose-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <div class="text-xs space-y-1">
+              <p id="upload-error-title" class="font-bold text-rose-300">Dosya Boyutu Limiti Aşıldı</p>
+              <p id="upload-error-msg" class="text-rose-200/80"></p>
+            </div>
+          </div>
+
+          <!-- Tek Tıkla Test Edilebilir 4 Demo Paketi -->
+          <div class="space-y-2.5 pt-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Hızlı Test İçin Örnek Eski Oyun Paketleri</span>
+              <span class="text-[11px] text-slate-500">Tek tıkla analiz et</span>
+            </div>
+            <div id="demo-packages-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <!-- JS ile 4 demo paket doldurulur -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Seçili Paket Analiz Özeti Kartı -->
+        <div id="selected-package-card" class="hidden glass-card rounded-3xl p-4 sm:p-5 border-emerald-500/30 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-800">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div id="pkg-icon-box" class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border">
+                <!-- Dinamik SVG -->
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 id="pkg-name" class="text-base font-extrabold text-white truncate">Paket Adı</h3>
+                  <span id="pkg-ext-badge" class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">XAPK</span>
+                </div>
+                <p id="pkg-filename" class="text-xs font-mono text-slate-400 truncate mt-0.5">dosya.xapk</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 self-start sm:self-center">
+              <span id="pkg-compat-estimate" class="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
+                Tahmini Uyum: %98
+              </span>
+            </div>
+          </div>
+
+          <!-- Paket Teknik Metrikleri -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
+              <span class="text-[10px] text-slate-500 block">Dosya Boyutu</span>
+              <span id="pkg-size" class="font-bold text-slate-100 font-mono mt-0.5 block">3.84 GB</span>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
+              <span class="text-[10px] text-slate-500 block">Hedef Eski Sürüm</span>
+              <span id="pkg-android" class="font-bold text-amber-300 mt-0.5 block">Android 4.0 (API 14)</span>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
+              <span class="text-[10px] text-slate-500 block">ZIP / APK İmzası</span>
+              <span id="pkg-signature" class="font-bold text-emerald-400 font-mono mt-0.5 block">PK (0x504B0304)</span>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
+              <span class="text-[10px] text-slate-500 block">Mimari & OBB</span>
+              <span id="pkg-arch" class="font-bold text-sky-300 mt-0.5 block">ARMv7a • OBB Var</span>
+            </div>
+          </div>
+
+          <!-- Uyumluluk Yamalayıcı Modülleri (6 Modül) -->
+          <div class="space-y-3 pt-1">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+                </svg>
+                Eski Sürüm Uyumluluk Modülleri
+              </h4>
+              <span id="active-modules-count" class="text-[11px] font-semibold text-sky-400">6/6 Modül Aktif</span>
+            </div>
+
+            <div id="patch-modules-list" class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <!-- JS ile 6 modül oluşturulur -->
+            </div>
+          </div>
+
+          <!-- Uyumlu Hale Getir Aksiyon Butonu -->
+          <div class="pt-2 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            <div class="text-[11px] text-slate-400 flex items-center gap-2">
+              <svg class="w-4 h-4 text-sky-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+              </svg>
+              İşlem orijinal dosyayı bozmadan sanal uyumluluk katmanı üretir.
+            </div>
+            <div class="flex flex-wrap gap-2 shrink-0">
+              <button type="button" id="btn-download-selected-pkg" class="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-sky-300 inline-flex items-center justify-center gap-1.5 transition">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Cihaza İndir
+              </button>
+              <button id="btn-start-patch" class="neon-btn px-6 py-3 rounded-2xl text-sm font-extrabold text-slate-950 flex items-center justify-center gap-2 shrink-0">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-linejoin="round"/>
+                </svg>
+                Uyumlu Hale Getir
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canlı Terminal ve İlerleme Paneli -->
+        <div id="patcher-terminal-panel" class="hidden glass-card rounded-3xl p-4 sm:p-5 space-y-4 border-sky-500/30">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+              <span id="terminal-status-dot" class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping"></span>
+              <h3 id="terminal-status-title" class="text-sm font-bold text-white">Uyumluluk Simülasyonu Çalışıyor...</h3>
+            </div>
+            <span id="patch-percent-label" class="font-mono text-sm font-bold text-emerald-400">0%</span>
+          </div>
+
+          <!-- İlerleme Çubuğu -->
+          <div class="w-full h-3 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+            <div id="patch-progress-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400 transition-all duration-300"></div>
+          </div>
+
+          <!-- Canlı Terminal Günlükleri -->
+          <div id="terminal-logs" class="bg-[#060911] border border-slate-800/90 rounded-2xl p-3.5 h-52 overflow-y-auto font-mono text-[11px] sm:text-xs space-y-1.5 leading-relaxed">
+            <!-- JS ile satır satır log eklenir -->
+          </div>
+
+          <!-- İşlem Tamamlandı Sonuç Eylemleri -->
+          <div id="patch-complete-actions" class="hidden pt-1 flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-800/80">
+            <div class="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+              <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              Paket profili kütüphaneye eklendi; gerçek oyun başlatılmaz.
+            </div>
+            <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+              <button id="btn-download-patched-pkg" class="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/45 text-xs font-bold text-emerald-200 inline-flex items-center justify-center gap-1.5 transition">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Dosyayı Cihaza İndir
+              </button>
+              <button id="btn-download-report" class="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-sky-300 inline-flex items-center justify-center gap-1.5 transition">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                </svg>
+                Rapor (.json)
+              </button>
+              <button id="btn-launch-patched" class="flex-1 sm:flex-none neon-btn px-4 py-2.5 rounded-xl text-xs font-extrabold text-slate-950 inline-flex items-center justify-center gap-1.5">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+                Şimdi Başlat
+              </button>
+              <button onclick="switchTab('library')" class="px-3.5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-semibold text-emerald-300 transition">
+                Kütüphane
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================================== -->
+      <!-- SEKME 3: UYUMLULUK MOTORU VE HAZIR PROFİLLER                        -->
+      <!-- =================================================================== -->
+      <section id="tab-engine" class="tab-section hidden tab-animate space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 class="text-lg font-bold text-white">Hazır Uyumluluk Profilleri</h2>
+            <p class="text-xs text-slate-400">Yeni yamalanacak oyunlar ve sanal konteyner için varsayılan motor davranışını seçin.</p>
+          </div>
+          <span class="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full self-start">
+            Otomatik Kayıt: Aktif
+          </span>
+        </div>
+
+        <!-- 3 Hazır Profil Kartı -->
+        <div id="profiles-grid" class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <!-- JS ile doldurulur -->
+        </div>
+
+        <!-- Gelişmiş Motor Parametreleri -->
+        <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-4">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <svg class="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
+            Çeviri Katmanı ve Grafik Motoru Ayarları
+          </h3>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- ABI Çeviri Köprüsü Seçimi -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-3.5 space-y-2">
+              <label for="engine-abi" class="text-xs font-semibold text-slate-300 block">32-bit (ARMv7a) → 64-bit Çeviri Köprüsü</label>
+              <select id="engine-abi" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:border-emerald-500 focus:outline-none">
+                <option value="RetroBridge JIT v4 (Önerilen)">RetroBridge JIT v4 (Önerilen)</option>
+                <option value="Houdini-Compat Dinamik Çevirici">Houdini-Compat Dinamik Çevirici</option>
+                <option value="Saf NDK-Translation (Yüksek Kararlılık)">Saf NDK-Translation (Yüksek Kararlılık)</option>
+              </select>
+              <p class="text-[11px] text-slate-500">Yalnızca 64-bit destekleyen Snapdragon 8 Gen 3/4 ve Dimensity işlemcilerde 32-bit kütüphaneleri çalıştırır.</p>
+            </div>
+
+            <!-- Grafik Arka Ucu -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-3.5 space-y-2">
+              <label for="engine-renderer" class="text-xs font-semibold text-slate-300 block">OpenGL ES 2.0 Grafik Arka Ucu</label>
+              <select id="engine-renderer" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:border-emerald-500 focus:outline-none">
+                <option value="Vulkan ANGLE Wrapper (Yüksek Hız)">Vulkan ANGLE Wrapper (Yüksek Hız)</option>
+                <option value="OpenGL ES 3.2 Uyumluluk Katmanı">OpenGL ES 3.2 Uyumluluk Katmanı</option>
+                <option value="Legacy GLES 2.0 Yazılım Emülasyonu">Legacy GLES 2.0 Yazılım Emülasyonu</option>
+              </select>
+              <p class="text-[11px] text-slate-500">Eski shader komutlarını modern GPU sürücülerinin anlayacağı Vulkan çağrılarına dönüştürür.</p>
+            </div>
+
+            <!-- Sanal Bellek Limiti -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <label for="engine-ram" class="text-xs font-semibold text-slate-300">Konteyner Sanal RAM Tahsisi</label>
+                <span id="engine-ram-val" class="text-xs font-mono font-bold text-emerald-400">4096 MB</span>
+              </div>
+              <input id="engine-ram" type="range" min="1024" max="8192" step="512" value="4096" class="w-full accent-emerald-400 cursor-pointer" />
+              <div class="flex justify-between text-[10px] font-mono text-slate-500">
+                <span>1 GB</span><span>4 GB</span><span>8 GB</span>
+              </div>
+            </div>
+
+            <!-- Ek Motor Anahtarları -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between gap-3">
+              <label class="flex items-center justify-between gap-3 cursor-pointer">
+                <div>
+                  <span class="text-xs font-semibold text-slate-200 block">Scoped Storage OBB Sanal Bağlama</span>
+                  <span class="text-[11px] text-slate-500">Android 11+ kısıtlamalarını sanal /Android/obb köprüsüyle aşar</span>
+                </div>
+                <div class="relative shrink-0">
+                  <input id="engine-scoped-obb" type="checkbox" class="sr-only toggle-checkbox" checked />
+                  <div class="toggle-track w-11 h-6 bg-slate-800 border border-slate-700 rounded-full transition">
+                    <div class="toggle-thumb w-4 h-4 bg-slate-400 rounded-full m-0.5 transition transform"></div>
+                  </div>
+                </div>
+              </label>
+
+              <label class="flex items-center justify-between gap-3 cursor-pointer">
+                <div>
+                  <span class="text-xs font-semibold text-slate-200 block">Eski OpenSL ES Ses Gecikme Düzeltici</span>
+                  <span class="text-[11px] text-slate-500">Android 2.3–5.0 oyunlarındaki ses cızırtı ve senkron kaymasını giderir</span>
+                </div>
+                <div class="relative shrink-0">
+                  <input id="engine-audio-fix" type="checkbox" class="sr-only toggle-checkbox" checked />
+                  <div class="toggle-track w-11 h-6 bg-slate-800 border border-slate-700 rounded-full transition">
+                    <div class="toggle-thumb w-4 h-4 bg-slate-400 rounded-full m-0.5 transition transform"></div>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================================== -->
+      <!-- SEKME 4: SİSTEM, DEPOLAMA GRAFİĞİ VE DESTEKLENEN ANDROID SÜRÜMLERİ  -->
+      <!-- =================================================================== -->
+      <section id="tab-system" class="tab-section hidden tab-animate space-y-5">
+
+        <!-- Render APK Analiz & İmzalama Sunucusu Bağlantı Kartı -->
+        <div class="glass-card rounded-3xl p-4 sm:p-5 border-sky-500/30 space-y-3.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-sky-400">Render Arka Uç Bağlantısı (aapt • apktool • apksigner)</span>
+              <h3 class="text-base font-extrabold text-white mt-0.5">Gerçek APK Analiz &amp; İmzalama Sunucusu</h3>
+            </div>
+            <span id="server-status-badge" class="px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
+              Kontrol ediliyor...
+            </span>
+          </div>
+
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input
+              id="server-url-input"
+              type="url"
+              placeholder="https://retrodroid-compat.onrender.com (Render'da barındırılıyorsa boş bırakın)"
+              class="flex-1 rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-mono text-slate-100 placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+            />
+            <button type="button" id="btn-save-test-server" class="neon-btn px-4 py-2.5 rounded-xl text-xs font-extrabold text-slate-950 shrink-0">
+              Bağlan &amp; Test Et
+            </button>
+          </div>
+          <p id="server-tools-info" class="text-[11px] text-slate-400">
+            Render adresini bağladığınızda seçtiğiniz APK dosyaları gerçek aapt ile analiz edilip apktool + zipalign + apksigner ile imzalanarak cihazınıza indirilir.
+          </p>
+        </div>
+
+        <!-- 5 GB Paket Limiti ve Sanal Alan (Sandbox) Depolama Grafiği -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          <!-- Maksimum 5 GB Paket Limiti Kartı -->
+          <div class="glass-card rounded-3xl p-5 flex flex-col justify-between gap-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-sky-400">Tekil Paket İşleme Kapasitesi</span>
+                <h3 class="text-lg font-extrabold text-white mt-0.5">Maksimum 5.00 GB Limiti</h3>
+                <p class="text-xs text-slate-400 mt-1">
+                  Büyük boyutlu XAPK + OBB paketleri akışlı (streaming) bayt okuyucu ile 5120 MB sınırına kadar güvenle doğrulanır.
+                </p>
+              </div>
+              <div class="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0 font-mono font-extrabold text-sm">
+                5GB
+              </div>
+            </div>
+
+            <div class="space-y-2.5 bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400">Kütüphanedeki En Büyük Paket</span>
+                <span id="sys-largest-pkg" class="font-mono font-bold text-emerald-400">0 GB / 5.00 GB</span>
+              </div>
+              <div class="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                <div id="sys-largest-bar" class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-sky-400 transition-all duration-500" style="width: 0%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] font-mono text-slate-500">
+                <span>0 MB</span><span>2.5 GB</span><span>5.0 GB (5120 MB)</span>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button id="btn-clear-cache" class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition">
+                Shader Önbelleğini Temizle
+              </button>
+              <button id="btn-copy-sysinfo" class="flex-1 px-3.5 py-2.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-xs font-semibold text-sky-300 transition">
+                Sistem Raporunu Kopyala
+              </button>
+              <button id="btn-export-backup" class="flex-1 px-3.5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-semibold text-emerald-300 transition">
+                Yedeği Cihaza İndir (.json)
+              </button>
+              <button id="btn-import-backup" class="flex-1 px-3.5 py-2.5 rounded-xl bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 text-xs font-semibold text-violet-300 transition">
+                Yedekten Geri Yükle
+              </button>
+              <input id="backup-file-input" type="file" accept=".json,application/json" class="hidden" />
+              <button id="btn-reset-app" class="w-full px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-xs font-semibold text-rose-300 transition">
+                Varsayılan Verileri Sıfırla
+              </button>
+            </div>
+          </div>
+
+          <!-- Sanal Alan (Sandbox) Depolama Grafiği -->
+          <div class="glass-card rounded-3xl p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">Sanal Alan Kotası (32 GB)</span>
+                <h3 class="text-lg font-extrabold text-white mt-0.5">Sandbox Depolama Dağılımı</h3>
+              </div>
+              <span id="sandbox-used-pct" class="font-mono text-sm font-bold text-emerald-400">0%</span>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center gap-5">
+              <!-- SVG Donut Grafiği -->
+              <div class="relative w-36 h-36 shrink-0">
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="48" fill="none" stroke="#1e293b" stroke-width="12" />
+                  <circle id="donut-xapk" cx="60" cy="60" r="48" fill="none" stroke="#10b981" stroke-width="12" stroke-linecap="round" stroke-dasharray="301.6" stroke-dashoffset="301.6" class="transition-all duration-700" />
+                  <circle id="donut-apk" cx="60" cy="60" r="48" fill="none" stroke="#0ea5e9" stroke-width="12" stroke-linecap="round" stroke-dasharray="301.6" stroke-dashoffset="301.6" class="transition-all duration-700" />
+                  <circle id="donut-cache" cx="60" cy="60" r="48" fill="none" stroke="#a855f7" stroke-width="12" stroke-linecap="round" stroke-dasharray="301.6" stroke-dashoffset="301.6" class="transition-all duration-700" />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span id="donut-total-gb" class="text-base font-extrabold text-white font-mono">0 GB</span>
+                  <span class="text-[10px] text-slate-400">/ 32 GB</span>
+                </div>
+              </div>
+
+              <!-- Depolama Kalemleri Listesi -->
+              <div class="flex-1 w-full space-y-2.5 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="flex items-center gap-2 text-slate-300">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>XAPK & OBB Paketleri
+                  </span>
+                  <span id="storage-xapk-val" class="font-mono font-semibold text-white">0 GB</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="flex items-center gap-2 text-slate-300">
+                    <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>APK Kurulum Dosyaları
+                  </span>
+                  <span id="storage-apk-val" class="font-mono font-semibold text-white">0 MB</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="flex items-center gap-2 text-slate-300">
+                    <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span>Shader & JIT Önbellek
+                  </span>
+                  <span id="storage-cache-val" class="font-mono font-semibold text-white">420 MB</span>
+                </div>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                  <span class="flex items-center gap-2 text-slate-400">
+                    <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>Boş Sanal Alan
+                  </span>
+                  <span id="storage-free-val" class="font-mono font-semibold text-emerald-300">31.5 GB</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desteklenen Eski Android Sürümleri Listesi (2.3 -> 9.0) -->
+        <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 class="text-base font-bold text-white">Desteklenen Eski Android Sürümleri</h3>
+              <p class="text-xs text-slate-400">Android 2.3 Gingerbread'den Android 9 Pie'a kadar tüm eski API düzeyleri için uyumluluk matrisi.</p>
+            </div>
+            <span class="text-[11px] font-semibold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 self-start">
+              API 9 – API 28 Tam Kapsam
+            </span>
+          </div>
+
+          <div id="android-versions-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <!-- JS ile doldurulur -->
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ALT GEZİNME ÇUBUĞU (BOTTOM NAVIGATION) -->
+    <nav class="shrink-0 fixed md:absolute bottom-0 left-0 right-0 z-30 bg-[#0b0f17]/95 backdrop-blur-xl border-t border-slate-800/90 px-2 py-2">
+      <div class="max-w-xl mx-auto grid grid-cols-4 gap-1">
+        <button data-tab="library" class="nav-btn flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition text-emerald-400 bg-emerald-500/10">
+          <svg class="w-5 h-5 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+          </svg>
+          <span class="text-[11px] font-bold">Kütüphane</span>
+        </button>
+
+        <button data-tab="patcher" class="nav-btn flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition text-slate-400 hover:text-slate-200">
+          <svg class="w-5 h-5 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span class="text-[11px] font-semibold">Yükle & Yamala</span>
+        </button>
+
+        <button data-tab="engine" class="nav-btn flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition text-slate-400 hover:text-slate-200">
+          <svg class="w-5 h-5 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+          <span class="text-[11px] font-semibold">Motor & Profil</span>
+        </button>
+
+        <button data-tab="system" class="nav-btn flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition text-slate-400 hover:text-slate-200">
+          <svg class="w-5 h-5 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/>
+          </svg>
+          <span class="text-[11px] font-semibold">Sistem</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- MODAL 1: OYUN HIZLI AYARLAR PENCERESİ                               -->
+  <!-- =================================================================== -->
+  <div id="modal-game-settings" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-md rounded-3xl p-5 space-y-5 border-slate-700/80 shadow-2xl tab-animate">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Oyun Profili Ayarları</span>
+          <h3 id="settings-game-title" class="text-base font-extrabold text-white mt-0.5">Oyun Adı</h3>
+        </div>
+        <button onclick="closeGameSettings()" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- FPS Limiti -->
+      <div class="space-y-2">
+        <label class="text-xs font-semibold text-slate-300 block">Kare Hızı (FPS Limiti)</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" data-fps="30" class="fps-opt py-2.5 rounded-xl text-xs font-bold border transition">30 FPS</button>
+          <button type="button" data-fps="60" class="fps-opt py-2.5 rounded-xl text-xs font-bold border transition">60 FPS</button>
+          <button type="button" data-fps="90" class="fps-opt py-2.5 rounded-xl text-xs font-bold border transition">90 FPS</button>
+        </div>
+      </div>
+
+      <!-- Çözünürlük Ölçeği (%75 - %150) -->
+      <div class="space-y-2">
+        <div class="flex justify-between text-xs">
+          <label for="settings-res-range" class="font-semibold text-slate-300">Çözünürlük Ölçeği</label>
+          <span id="settings-res-label" class="font-mono font-bold text-sky-400">%100</span>
+        </div>
+        <input id="settings-res-range" type="range" min="75" max="150" step="25" value="100" class="w-full accent-sky-400 cursor-pointer" />
+        <div class="flex justify-between text-[10px] font-mono text-slate-500">
+          <span>%75 (Hızlı)</span><span>%100</span><span>%125</span><span>%150 (HD)</span>
+        </div>
+      </div>
+
+      <!-- Kontrol Modu -->
+      <div class="space-y-2">
+        <label for="settings-control-mode" class="text-xs font-semibold text-slate-300 block">Kontrol ve Dokunmatik Katmanı</label>
+        <select id="settings-control-mode" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:border-emerald-500 focus:outline-none">
+          <option value="Sanal Gamepad Katmanı">Sanal Gamepad Katmanı (Önerilen)</option>
+          <option value="Eski Dokunmatik Ölçekleme">Eski Dokunmatik Ölçekleme (16:9)</option>
+          <option value="Bluetooth / USB Kontrolcü">Bluetooth / USB Kontrolcü (XInput)</option>
+        </select>
+      </div>
+
+      <!-- Alt Eylemler -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+        <button id="btn-delete-game-modal" class="px-3.5 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-xs font-bold text-rose-300 transition">
+          Oyunu Sil
+        </button>
+        <div class="flex flex-wrap gap-2">
+          <button id="btn-download-game-modal" type="button" class="px-3.5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-xs font-bold text-emerald-300 border border-emerald-500/30 transition">
+            Cihaza İndir
+          </button>
+          <button id="btn-export-game-report" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-sky-300 border border-slate-700 transition">
+            JSON Rapor
+          </button>
+          <button id="btn-save-game-settings" class="neon-btn px-5 py-2.5 rounded-xl text-xs font-extrabold text-slate-950">
+            Kaydet
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- MODAL 2: ÖZEL ONAY PENCERESİ (confirm() YERİNE)                     -->
+  <!-- =================================================================== -->
+  <div id="modal-confirm" class="fixed inset-0 z-[80] hidden items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-sm rounded-3xl p-5 space-y-4 border-rose-500/30 shadow-2xl tab-animate">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div>
+          <h3 id="confirm-title" class="text-sm font-extrabold text-white">İşlemi Onayla</h3>
+          <p id="confirm-message" class="text-xs text-slate-400 mt-0.5">Bu işlemi yapmak istediğinize emin misiniz?</p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="btn-confirm-cancel" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">
+          Vazgeç
+        </button>
+        <button id="btn-confirm-ok" class="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-xs font-bold text-white transition">
+          Onayla
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- TAM EKRAN SANAL UYUMLULUK KONTEYNERİ (OYUN BAŞLATICI SİMÜLASYONU)   -->
+  <!-- =================================================================== -->
+  <div id="sandbox-overlay" class="fixed inset-0 z-[70] hidden flex-col bg-[#05080f]">
+    <!-- Üst Konteyner Kontrol ve Canlı Telemetri Çubuğu -->
+    <div class="shrink-0 px-3 sm:px-5 py-2.5 bg-slate-950/90 border-b border-slate-800/90 flex flex-wrap items-center justify-between gap-2 z-20">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+        <div class="min-w-0">
+          <h3 id="sandbox-game-name" class="text-xs sm:text-sm font-extrabold text-white truncate">Oyun Başlatılıyor</h3>
+          <p id="sandbox-game-meta" class="text-[10px] font-mono text-sky-400 truncate">ARMv7a → ARM64-v8a Köprü • OpenGL ES 2.0 → Vulkan</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <button id="btn-toggle-hud" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-emerald-300 border border-slate-700 transition">
+          HUD: Açık
+        </button>
+        <button id="btn-toggle-vpad" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-sky-300 border border-slate-700 transition">
+          Kontrol: Açık
+        </button>
+        <button id="btn-exit-sandbox" class="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-[11px] font-bold text-rose-300 border border-rose-500/40 transition">
+          Konteynerden Çık
+        </button>
+      </div>
+    </div>
+
+    <!-- Ana Sanal Ekran (Canvas + HUD + Boot + Sanal Kontroller) -->
+    <div id="sandbox-viewport" class="relative flex-1 overflow-hidden bg-black flex items-center justify-center">
+      <!-- Dinamik Oyun Görseli Canvas -->
+      <canvas id="sandbox-canvas" class="w-full h-full block"></canvas>
+
+      <!-- Hafif Retro Tarama Çizgileri -->
+      <div class="absolute inset-0 scanlines pointer-events-none opacity-40"></div>
+
+      <!-- Açılış Sekansı Katmanı (Boot Screen) -->
+      <div id="sandbox-boot-layer" class="absolute inset-0 z-20 bg-[#070b14]/95 flex flex-col items-center justify-center p-6 text-center space-y-5">
+        <div class="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-sky-500/20 border border-emerald-500/40 flex items-center justify-center animate-pulse">
+          <svg class="w-9 h-9 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </div>
+        <div class="space-y-1">
+          <p class="text-xs font-mono uppercase tracking-widest text-emerald-400">RetroDroid Sanal Konteyner v4.2</p>
+          <h4 id="boot-title" class="text-lg sm:text-xl font-extrabold text-white">Uyumluluk Ortamı Başlatılıyor...</h4>
+        </div>
+        <div class="w-full max-w-md bg-slate-950 border border-slate-800 rounded-2xl p-3.5 text-left font-mono text-[11px] text-slate-300 space-y-1.5" id="boot-steps">
+          <!-- JS ile açılış adımları yazılır -->
+        </div>
+      </div>
+
+      <!-- Canlı Performans & Köprü HUD Katmanı -->
+      <div id="sandbox-hud" class="absolute top-3 left-3 z-10 bg-slate-950/80 backdrop-blur-md border border-emerald-500/30 rounded-2xl px-3 py-2 font-mono text-[10px] sm:text-[11px] space-y-1 pointer-events-none shadow-lg">
+        <div class="flex items-center gap-3">
+          <span class="text-emerald-400 font-bold">FPS: <span id="hud-fps">60</span></span>
+          <span class="text-sky-400 font-bold">RAM: <span id="hud-ram">1240 MB</span></span>
+          <span class="text-amber-300">ÖLÇEK: <span id="hud-scale">%100</span></span>
+        </div>
+        <div class="flex items-center gap-2 text-slate-300">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span>KÖPRÜ: <strong class="text-emerald-300">ARMv7 → ARM64 AKTİF</strong></span>
+        </div>
+        <div class="text-slate-400" id="hud-input-status">GİRDİ: Bekleniyor (Yön tuşları / Dokunmatik)</div>
+      </div>
+
+      <!-- Ekran Üstü Sanal Gamepad / Dokunmatik Kontrol Katmanı -->
+      <div id="sandbox-vpad" class="absolute inset-x-0 bottom-4 sm:bottom-6 px-4 sm:px-8 flex items-end justify-between pointer-events-none z-10">
+        <!-- Sol D-Pad -->
+        <div class="pointer-events-auto grid grid-cols-3 gap-1.5 w-36 h-36 sm:w-40 sm:h-40">
+          <div></div>
+          <button data-vkey="UP" class="vpad-btn rounded-xl bg-slate-900/65 border border-slate-500/40 text-white flex items-center justify-center backdrop-blur-sm">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+          </button>
+          <div></div>
+          <button data-vkey="LEFT" class="vpad-btn rounded-xl bg-slate-900/65 border border-slate-500/40 text-white flex items-center justify-center backdrop-blur-sm">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="rounded-xl bg-slate-900/30 border border-slate-700/30"></div>
+          <button data-vkey="RIGHT" class="vpad-btn rounded-xl bg-slate-900/65 border border-slate-500/40 text-white flex items-center justify-center backdrop-blur-sm">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <div></div>
+          <button data-vkey="DOWN" class="vpad-btn rounded-xl bg-slate-900/65 border border-slate-500/40 text-white flex items-center justify-center backdrop-blur-sm">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div></div>
+        </div>
+
+        <!-- Sağ Aksiyon Tuşları (A / B / X / Y) -->
+        <div class="pointer-events-auto grid grid-cols-2 gap-2.5">
+          <button data-vkey="Y" class="vpad-btn w-14 h-14 p-3 rounded-full bg-amber-500/25 border border-amber-400/50 text-amber-200 font-extrabold text-sm backdrop-blur-sm">Y</button>
+          <button data-vkey="X" class="vpad-btn w-14 h-14 p-3 rounded-full bg-sky-500/25 border border-sky-400/50 text-sky-200 font-extrabold text-sm backdrop-blur-sm">X</button>
+          <button data-vkey="B" class="vpad-btn w-14 h-14 p-3 rounded-full bg-rose-500/25 border border-rose-400/50 text-rose-200 font-extrabold text-sm backdrop-blur-sm">B</button>
+          <button data-vkey="A" class="vpad-btn w-14 h-14 p-3 rounded-full bg-emerald-500/30 border border-emerald-400/60 text-emerald-200 font-extrabold text-sm backdrop-blur-sm">A</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- MODAL 3: DOSYAYI CİHAZA İNDİRME MERKEZİ                             -->
+  <!-- =================================================================== -->
+  <div id="modal-download-package" class="fixed inset-0 z-[75] hidden items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl p-5 space-y-4 border-emerald-500/30 shadow-2xl tab-animate">
+      <div class="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
+        <div class="min-w-0">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Cihaza İndirme Merkezi</span>
+          <h3 id="dl-game-title" class="text-base font-extrabold text-white mt-0.5 truncate">Paket Adı</h3>
+          <p id="dl-game-meta" class="text-[11px] font-mono text-slate-400 truncate mt-0.5">APK • 0 MB • com.example</p>
+        </div>
+        <button type="button" onclick="closeDownloadModal()" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition" title="Kapat">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Dosya Durum Bilgisi -->
+      <div id="dl-status-banner" class="rounded-2xl p-3.5 text-xs border leading-relaxed">
+        <!-- JS ile doldurulur -->
+      </div>
+
+      <!-- İndirme Seçenekleri -->
+      <div id="dl-options-list" class="space-y-2.5">
+        <!-- JS ile dinamik indirme butonları -->
+      </div>
+
+      <!-- Oturumda Dosya Yoksa Cihazdan Yeniden Bağlama Alanı -->
+      <div id="dl-reattach-box" class="hidden rounded-2xl bg-slate-900/80 border border-dashed border-slate-700 p-3.5 space-y-2">
+        <p class="text-xs font-bold text-slate-200">Bu Oyun İçin Yerel Dosyayı Bağla</p>
+        <p class="text-[11px] text-slate-400">Cihazınızdaki .apk veya .xapk dosyasını seçerseniz doğrudan kurulum paketi (.zip) ya da orijinal dosya olarak indirebilirsiniz.</p>
+        <input id="dl-reattach-input" type="file" accept=".apk,.xapk" class="hidden" />
+        <button type="button" id="btn-dl-reattach" class="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-xs font-bold text-sky-300 transition">
+          Cihazdan APK / XAPK Seç ve Bağla
+        </button>
+      </div>
+
+      <!-- İndirme İlerleme Göstergesi (ZIP hazırlanırken) -->
+      <div id="dl-progress-box" class="hidden rounded-2xl bg-slate-950 border border-sky-500/35 p-3 space-y-2">
+        <div class="flex items-center justify-between text-xs font-mono">
+          <span id="dl-progress-label" class="text-sky-300">Paket hazırlanıyor...</span>
+          <span id="dl-progress-pct" class="text-emerald-400 font-bold">0%</span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+          <div id="dl-progress-bar" class="h-full bg-gradient-to-r from-emerald-400 to-sky-400 transition-all duration-150" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2 border-t border-slate-800">
+        <button type="button" onclick="closeDownloadModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">
+          Kapat
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST BİLDİRİM ALANI -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[90] flex flex-col gap-2 max-w-xs w-[calc(100%-2rem)] pointer-events-none"></div>
+
+  <!-- =================================================================== -->
+  <!-- JAVASCRIPT UYGULAMA MANTIĞI                                         -->
+  <!-- =================================================================== -->
+  <script>
+    /**
+     * RetroDroid Compat — Eski Oyun Uyumluluk Motoru
+     * Tüm veri kalıcılığı (localStorage), gerçek bayt başlığı (PK header) doğrulaması,
+     * 5 GB boyut sınırı kontrolü, yama simülasyonu, JSON rapor dışa aktarma ve
+     * sanal uyumluluk konteyneri bu tek dosya içinde çalışır.
+     */
+
+    // =========================================================================
+    // 1. SABİTLER VE VERİ ŞABLONLARI
+    // =========================================================================
+    const STORAGE_KEY = 'retrodroid_compat_state_v1';
+    const MAX_FILE_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB = 5120 MB = 5,368,709,120 bayt
+    const SANDBOX_QUOTA_MB = 32 * 1024; // 32 GB Sanal Alan Kotası
+
+    // Tek tıkla test edilebilen 4 örnek eski Android oyunu (Demo Paketler)
+    const DEMO_PACKAGES = [
+      {
+        id: 'demo-mc4',
+        name: 'Modern Combat 4: Zero Hour',
+        fileName: 'Modern_Combat_4_Zero_Hour_v1.2.2e.xapk',
+        ext: 'XAPK',
+        sizeMB: 3932.16, // 3.84 GB
+        legacyAndroid: 'Android 4.0',
+        legacyApi: 14,
+        arch: 'ARMv7a (32-bit)',
+        hasObb: true,
+        genre: 'fps',
+        accent: 'emerald',
+        signature: '0x504B0304 (Geçerli PK/XAPK)',
+        packageId: 'com.gameloft.android.ANMP.GloftM4HM'
+      },
+      {
+        id: 'demo-nova3',
+        name: 'N.O.V.A. 3: Freedom Edition',
+        fileName: 'NOVA_3_Freedom_Edition_v1.0.8.xapk',
+        ext: 'XAPK',
+        sizeMB: 2201.6, // 2.15 GB
+        legacyAndroid: 'Android 4.1',
+        legacyApi: 16,
+        arch: 'ARMv7a (32-bit)',
+        hasObb: true,
+        genre: 'scifi',
+        accent: 'sky',
+        signature: '0x504B0304 (Geçerli PK/XAPK)',
+        packageId: 'com.gameloft.android.ANMP.GloftN3HM'
+      },
+      {
+        id: 'demo-gtavc',
+        name: 'GTA: Vice City v1.03',
+        fileName: 'GTA_Vice_City_Classic_v1.03.xapk',
+        ext: 'XAPK',
+        sizeMB: 1454.08, // 1.42 GB
+        legacyAndroid: 'Android 4.4',
+        legacyApi: 19,
+        arch: 'ARMv7a (32-bit)',
+        hasObb: true,
+        genre: 'city',
+        accent: 'violet',
+        signature: '0x504B0304 (Geçerli PK/XAPK)',
+        packageId: 'com.rockstargames.gtavc'
+      },
+      {
+        id: 'demo-flappy',
+        name: 'Flappy Bird Classic v1.3',
+        fileName: 'Flappy_Bird_Classic_v1.3.apk',
+        ext: 'APK',
+        sizeMB: 1.2, // 1.2 MB
+        legacyAndroid: 'Android 2.3',
+        legacyApi: 9,
+        arch: 'ARMv5 / ARMv7a',
+        hasObb: false,
+        genre: 'arcade',
+        accent: 'amber',
+        signature: '0x504B0304 (Geçerli PK/APK)',
+        packageId: 'com.dotgears.flappybird'
+      }
+    ];
+
+    // 6 Uyumluluk Yamalayıcı Modülü
+    const PATCH_MODULES = [
+      {
+        id: 'targetSdk',
+        title: 'TargetSDK Yükseltici',
+        desc: 'Eski API 14–23 Manifest yapısını Android 14/15/16 uyumlu hale getirir.',
+        weight: 22,
+        defaultOn: true
+      },
+      {
+        id: 'armBridge',
+        title: '32-bit (ARMv7a) → 64-bit Çeviri Köprüsü',
+        desc: 'Yalnızca 64-bit destekleyen yeni nesil işlemciler için dinamik JIT köprüsü.',
+        weight: 24,
+        defaultOn: true
+      },
+      {
+        id: 'xapkObb',
+        title: 'XAPK & OBB Otomatik Paketleyici',
+        desc: 'Scoped Storage ve Android/obb dizin yönlendirmesini otomatik yapılandırır.',
+        weight: 16,
+        defaultOn: true
+      },
+      {
+        id: 'notchFix',
+        title: 'Modern Ekran & Çentik Düzeltici',
+        desc: 'Eski 16:9 oyunları 20:9 çerçevesiz ekranlara ölçekler ve tam ekran yapar.',
+        weight: 12,
+        defaultOn: true
+      },
+      {
+        id: 'gles2',
+        title: 'Eski OpenGL ES 2.0 Grafik Emülasyonu',
+        desc: 'Eski doku ve shader komutlarını modern Vulkan/ANGLE katmanına çevirir.',
+        weight: 14,
+        defaultOn: true
+      },
+      {
+        id: 'resign',
+        title: 'v2/v3 APK Yeniden İmzalama',
+        desc: 'Modern Android paket yükleyici güvenlik doğrulaması için paketi yeniden imzalar.',
+        weight: 12,
+        defaultOn: true
+      }
+    ];
+
+    // Hazır Uyumluluk Profilleri
+    const ENGINE_PROFILES = [
+      {
+        id: 'max_compat',
+        name: 'Maksimum Uyumluluk',
+        shortName: 'Maks. Uyum',
+        desc: 'Tüm çeviri köprüleri, OpenGL ES 2.0 emülasyonu ve OBB yönlendirmesi açık. Büyük 3D XAPK oyunları için önerilir.',
+        badge: 'Önerilen',
+        color: 'emerald',
+        defaultModules: ['targetSdk', 'armBridge', 'xapkObb', 'notchFix', 'gles2', 'resign'],
+        abi: 'RetroBridge JIT v4 (Önerilen)',
+        renderer: 'Vulkan ANGLE Wrapper (Yüksek Hız)',
+        ram: 4096
+      },
+      {
+        id: 'performance',
+        name: 'Performans Odaklı',
+        shortName: 'Performans',
+        desc: 'Yüksek FPS ve düşük gecikme için optimize edilmiş çeviri katmanı. 90 FPS destekli cihazlar için idealdir.',
+        badge: 'Yüksek FPS',
+        color: 'sky',
+        defaultModules: ['targetSdk', 'armBridge', 'xapkObb', 'notchFix', 'resign'],
+        abi: 'Houdini-Compat Dinamik Çevirici',
+        renderer: 'Vulkan ANGLE Wrapper (Yüksek Hız)',
+        ram: 6144
+      },
+      {
+        id: 'legacy_2d',
+        name: 'Eski 2D Oyunlar',
+        shortName: 'Eski 2D',
+        desc: 'Android 2.3–4.4 dönemi hafif 2D APK oyunları için düşük RAM tüketimi ve klasik en-boy oranı koruması.',
+        badge: 'Hafif',
+        color: 'amber',
+        defaultModules: ['targetSdk', 'armBridge', 'gles2', 'resign'],
+        abi: 'Saf NDK-Translation (Yüksek Kararlılık)',
+        renderer: 'OpenGL ES 3.2 Uyumluluk Katmanı',
+        ram: 2048
+      }
+    ];
+
+    // Desteklenen Eski Android Sürümleri (2.3 Gingerbread -> 9 Pie)
+    const LEGACY_ANDROID_VERSIONS = [
+      { ver: 'Android 2.3', codename: 'Gingerbread', api: 'API 9–10', status: 'Tam Destek', note: '2D & OpenGL ES 1.1/2.0' },
+      { ver: 'Android 3.0', codename: 'Honeycomb', api: 'API 11–13', status: 'Tam Destek', note: 'Tablet UI Ölçekleme' },
+      { ver: 'Android 4.0', codename: 'Ice Cream Sandwich', api: 'API 14–15', status: 'Tam Destek', note: 'ARMv7a + OBB Köprüsü' },
+      { ver: 'Android 4.1–4.3', codename: 'Jelly Bean', api: 'API 16–18', status: 'Tam Destek', note: 'Project Butter / GLES 2.0' },
+      { ver: 'Android 4.4', codename: 'KitKat', api: 'API 19', status: 'Tam Destek', note: 'Dalvik → ART Uyumluluğu' },
+      { ver: 'Android 5.0–5.1', codename: 'Lollipop', api: 'API 21–22', status: 'Tam Destek', note: 'İlk 64-bit / 32-bit Hibrit' },
+      { ver: 'Android 6.0', codename: 'Marshmallow', api: 'API 23', status: 'Tam Destek', note: 'Çalışma Zamanı İzin Yaması' },
+      { ver: 'Android 7.0–7.1', codename: 'Nougat', api: 'API 24–25', status: 'Tam Destek', note: 'Vulkan 1.0 & FileProvider' },
+      { ver: 'Android 8.0–8.1', codename: 'Oreo', api: 'API 26–27', status: 'Tam Destek', note: 'Arka Plan & Ses Katmanı' },
+      { ver: 'Android 9.0', codename: 'Pie', api: 'API 28', status: 'Tam Destek', note: 'Çentik (Cutout) & v3 İmza' }
+    ];
+
+    // Varsayılan başlangıç kütüphanesi (kullanıcı ilk açtığında zengin deneyim için 2 hazır oyun)
+    function createDefaultState() {
+      return {
+        activeTab: 'library',
+        activeProfile: 'max_compat',
+        serverUrl: '',
+        cacheMB: 420,
+        engineSettings: {
+          abi: 'RetroBridge JIT v4 (Önerilen)',
+          renderer: 'Vulkan ANGLE Wrapper (Yüksek Hız)',
+          ram: 4096,
+          scopedObb: true,
+          audioFix: true
+        },
+        games: [
+          {
+            id: 'demo-gtavc',
+            name: 'GTA: Vice City v1.03',
+            fileName: 'GTA_Vice_City_Classic_v1.03.xapk',
+            ext: 'XAPK',
+            sizeMB: 1454.08,
+            legacyAndroid: 'Android 4.4',
+            legacyApi: 19,
+            arch: 'ARMv7a (32-bit)',
+            hasObb: true,
+            genre: 'city',
+            accent: 'violet',
+            signature: '0x504B0304 (Geçerli PK/XAPK)',
+            packageId: 'com.rockstargames.gtavc',
+            compatScore: 98,
+            patchedAt: new Date().toISOString(),
+            modules: ['targetSdk', 'armBridge', 'xapkObb', 'notchFix', 'gles2', 'resign'],
+            settings: {
+              fps: 60,
+              resolutionScale: 125,
+              controlMode: 'Sanal Gamepad Katmanı'
+            }
+          },
+          {
+            id: 'demo-flappy',
+            name: 'Flappy Bird Classic v1.3',
+            fileName: 'Flappy_Bird_Classic_v1.3.apk',
+            ext: 'APK',
+            sizeMB: 1.2,
+            legacyAndroid: 'Android 2.3',
+            legacyApi: 9,
+            arch: 'ARMv5 / ARMv7a',
+            hasObb: false,
+            genre: 'arcade',
+            accent: 'amber',
+            signature: '0x504B0304 (Geçerli PK/APK)',
+            packageId: 'com.dotgears.flappybird',
+            compatScore: 100,
+            patchedAt: new Date().toISOString(),
+            modules: ['targetSdk', 'armBridge', 'notchFix', 'gles2', 'resign'],
+            settings: {
+              fps: 60,
+              resolutionScale: 100,
+              controlMode: 'Eski Dokunmatik Ölçekleme'
+            }
+          }
+        ]
+      };
+    }
+
+    // =========================================================================
+    // 2. DURUM YÖNETİMİ VE LOCALSTORAGE KALICILIĞI
+    // =========================================================================
+    let appState = loadState();
+    let currentFilter = 'ALL';
+    let currentSearch = '';
+    let selectedPackage = null;
+    let activeModuleIds = new Set(PATCH_MODULES.map(m => m.id));
+    let isPatching = false;
+    let lastPatchedGame = null;
+    let editingGameId = null;
+    let confirmCallback = null;
+    let downloadingTarget = null;
+    // Yüklenen gerçek File nesneleri yalnızca aktif tarayıcı oturumunda bellekte tutulur
+    const sessionFileStore = new Map();
+
+    // Render sunucu çalışma durumu
+    let serverOnline = false;
+    let serverMaxUploadMB = 150;
+    let serverToolsStatus = null;
+
+    function getServerBaseUrl() {
+      const custom = (appState.serverUrl || '').trim().replace(/\/+$/, '');
+      if (custom) return custom;
+      if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+        return window.location.origin;
+      }
+      return '';
+    }
+
+    function updateServerStatusUI(state, detailText = '') {
+      const dot = document.getElementById('header-server-dot');
+      const lbl = document.getElementById('header-server-label');
+      const badge = document.getElementById('server-status-badge');
+      const info = document.getElementById('server-tools-info');
+      if (!dot || !lbl || !badge) return;
+
+      if (state === 'online') {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        lbl.textContent = 'Sunucu: Bağlı';
+        badge.textContent = `BAĞLI • Maks. ${serverMaxUploadMB} MB`;
+        badge.className = 'px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-emerald-500/15 border border-emerald-500/35 text-emerald-300';
+      } else if (state === 'waking') {
+        dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+        lbl.textContent = 'Uyanıyor...';
+        badge.textContent = 'Sunucu kontrol ediliyor...';
+        badge.className = 'px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300';
+      } else {
+        dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+        lbl.textContent = 'Yerel Mod';
+        badge.textContent = 'YEREL MOD (Sunucu Bağlı Değil)';
+        badge.className = 'px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-slate-800 border border-slate-700 text-slate-300';
+      }
+      if (info && detailText) info.textContent = detailText;
+    }
+
+    async function checkRenderServer(silent = false) {
+      const base = getServerBaseUrl();
+      const inputEl = document.getElementById('server-url-input');
+      if (inputEl && !inputEl.value && appState.serverUrl) {
+        inputEl.value = appState.serverUrl;
+      }
+      if (!base) {
+        serverOnline = false;
+        updateServerStatusUI('offline', 'Yerel dosya olarak açıldı. Gerçek APK analizi/imzalama için Render adresinizi yukarıya yazıp Bağlan & Test Et butonuna basın.');
+        return false;
+      }
+
+      updateServerStatusUI('waking', `${base}/health adresine bağlanılıyor (Render Free ilk açılışta 30-50 sn sürebilir)...`);
+      try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 25000);
+        const res = await fetch(`${base}/health`, { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        serverOnline = data && data.status === 'ok';
+        serverMaxUploadMB = Number(data.maxUploadMB) || 150;
+        serverToolsStatus = data.tools || null;
+        if (serverOnline) {
+          const toolSummary = serverToolsStatus
+            ? `Araçlar: aapt(${serverToolsStatus.aapt ? 'OK' : 'YOK'}), apktool(${serverToolsStatus.apktool ? 'OK' : 'YOK'}), zipalign(${serverToolsStatus.zipalign ? 'OK' : 'YOK'}), apksigner(${serverToolsStatus.apksigner ? 'OK' : 'YOK'})`
+            : 'Sunucu araçları hazır.';
+          updateServerStatusUI('online', `Bağlı: ${base} • ${toolSummary} • Sunucu yükleme limiti: ${serverMaxUploadMB} MB.`);
+          if (!silent) showToast(`Render APK sunucusuna bağlanıldı (Maks. ${serverMaxUploadMB} MB).`, 'success');
+          return true;
+        }
+      } catch (err) {
+        serverOnline = false;
+        updateServerStatusUI('offline', `${base} yanıt vermedi. Render uyku modundaysa 30 sn sonra tekrar "Bağlan & Test Et" deneyin; şimdilik yerel modda çalışabilirsiniz.`);
+        if (!silent) showToast('Render sunucusuna ulaşılamadı, yerel mod aktif.', 'warn');
+      }
+      return false;
+    }
+
+    // Sanal konteyner simülasyon durumu
+    let sandboxAnimFrame = null;
+    let sandboxTelemetryInterval = null;
+    let sandboxActiveGame = null;
+    let sandboxHudVisible = true;
+    let sandboxVpadVisible = true;
+    const pressedKeys = new Set();
+    let sandboxTimeouts = [];
+
+    function normalizeGame(game, index = 0) {
+      if (!game || typeof game !== 'object') return null;
+      const defaults = { id: `recovered-${index}`, name: 'İsimsiz paket', fileName: 'bilinmeyen.apk', ext: 'APK', sizeMB: 0, legacyAndroid: 'Bilinmiyor', legacyApi: 0, arch: 'Bilinmiyor', hasObb: false, genre: 'arcade', accent: 'sky', signature: 'Doğrulanmadı', packageId: '', compatScore: 0, modules: [], settings: {} };
+      const safe = { ...defaults, ...game };
+      safe.id = String(safe.id || `recovered-${index}`);
+      safe.name = String(safe.name || safe.fileName || 'İsimsiz paket');
+      safe.fileName = String(safe.fileName || safe.name);
+      safe.ext = ['APK', 'XAPK', 'APK+OBB'].includes(String(safe.ext).toUpperCase()) ? String(safe.ext).toUpperCase() : 'APK';
+      safe.sizeMB = Number.isFinite(Number(safe.sizeMB)) && Number(safe.sizeMB) >= 0 ? Number(safe.sizeMB) : 0;
+      safe.legacyAndroid = String(safe.legacyAndroid || 'Bilinmiyor');
+      safe.legacyApi = Number.isFinite(Number(safe.legacyApi)) ? Number(safe.legacyApi) : 0;
+      safe.arch = String(safe.arch || 'Bilinmiyor');
+      safe.packageId = String(safe.packageId || '');
+      safe.hasObb = Boolean(safe.hasObb);
+      safe.modules = Array.isArray(safe.modules) ? safe.modules.filter(id => PATCH_MODULES.some(m => m.id === id)) : [];
+      safe.settings = {
+        fps: [30, 60, 90, 120].includes(Number(safe.settings?.fps)) ? Number(safe.settings.fps) : 60,
+        resolutionScale: Math.min(200, Math.max(50, Number(safe.settings?.resolutionScale) || 100)),
+        controlMode: String(safe.settings?.controlMode || 'Sanal Gamepad Katmanı')
+      };
+      safe.compatScore = Math.min(100, Math.max(0, Number(safe.compatScore) || 0));
+      // File nesneleri yenilemeden sonra geçerli kalmaz; kalıcı duruma yalnızca metadata yazılır.
+      delete safe.rawFile;
+      delete safe.apkFile;
+      delete safe.obbFile;
+      delete safe.serverJobId;
+      delete safe.serverDownloadUrl;
+      delete safe.serverFileName;
+      return safe;
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return createDefaultState();
+        const parsed = JSON.parse(raw);
+        if (!parsed || !Array.isArray(parsed.games)) return createDefaultState();
+        const defaults = createDefaultState();
+        return {
+          ...defaults,
+          ...parsed,
+          games: parsed.games.map(normalizeGame).filter(Boolean),
+          engineSettings: { ...defaults.engineSettings, ...(parsed.engineSettings || {}) }
+        };
+      } catch (err) {
+        console.warn('Kayıtlı veri okunamadı; varsayılan durum yüklendi:', err);
+        return createDefaultState();
+      }
+    }
+
+    function saveState() {
+      try {
+        const persistentState = {
+          ...appState,
+          games: appState.games.map((game, index) => normalizeGame(game, index)).filter(Boolean)
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(persistentState));
+      } catch (err) {
+        console.warn('Yerel kayıt yapılamadı (tarayıcı depolama kotası dolu olabilir):', err);
+        if (typeof showToast === 'function') showToast('Ayarlar kaydedilemedi. Tarayıcı depolama alanını kontrol edin.', 'error');
+      }
+    }
+
+    // =========================================================================
+    // 3. YARDIMCI FONKSİYONLAR (FORMATLAMA, TOAST, SVG İKONLAR)
+    // =========================================================================
+    function formatSizeFromMB(mb) {
+      if (mb >= 1024) {
+        return (mb / 1024).toFixed(2) + ' GB';
+      }
+      if (mb >= 10) {
+        return mb.toFixed(1) + ' MB';
+      }
+      return mb.toFixed(2) + ' MB';
+    }
+
+    // Panoya kopyalama: önce Clipboard API, olmazsa execCommand yedeği. Gerçek sonucu döndürür.
+    async function copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (err) {
+        // izin verilmediyse yedek yönteme geç
+      }
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try {
+        ok = document.execCommand('copy');
+      } catch (err) {
+        ok = false;
+      }
+      ta.remove();
+      return ok;
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const styles = {
+        success: 'bg-slate-900/95 border-emerald-500/45 text-emerald-200',
+        info: 'bg-slate-900/95 border-sky-500/45 text-sky-200',
+        error: 'bg-slate-900/95 border-rose-500/50 text-rose-200',
+        warn: 'bg-slate-900/95 border-amber-500/45 text-amber-200'
+      };
+      const dotColors = {
+        success: 'bg-emerald-400',
+        info: 'bg-sky-400',
+        error: 'bg-rose-400',
+        warn: 'bg-amber-400'
+      };
+
+      toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl border backdrop-blur-xl shadow-2xl text-xs font-semibold tab-animate ${styles[type] || styles.info}`;
+      toast.innerHTML = `
+        <span class="w-2 h-2 rounded-full shrink-0 ${dotColors[type] || dotColors.info}"></span>
+        <span class="leading-snug">${escapeHtml(message)}</span>
+      `;
+
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-6px)';
+        toast.style.transition = 'all 0.25s ease';
+        setTimeout(() => toast.remove(), 260);
+      }, 3200);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Oyun türüne göre özel temiz inline SVG ikonu
+    function getGameArtworkSVG(genre, accent = 'emerald') {
+      const palettes = {
+        emerald: { bg: 'bg-emerald-500/15', border: 'border-emerald-500/35', text: 'text-emerald-400' },
+        sky: { bg: 'bg-sky-500/15', border: 'border-sky-500/35', text: 'text-sky-400' },
+        violet: { bg: 'bg-violet-500/15', border: 'border-violet-500/35', text: 'text-violet-400' },
+        amber: { bg: 'bg-amber-500/15', border: 'border-amber-500/35', text: 'text-amber-400' }
+      };
+      const p = palettes[accent] || palettes.emerald;
+
+      let icon = '';
+      if (genre === 'fps') {
+        icon = `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>`;
+      } else if (genre === 'scifi') {
+        icon = `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L4 7v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V7l-8-5z"/><path d="M9 12l2 2 4-4"/></svg>`;
+      } else if (genre === 'city') {
+        icon = `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l6-4v18M19 21V11l-8-3"/><path d="M8 10h.01M8 14h.01M15 14h.01M15 17h.01"/></svg>`;
+      } else {
+        icon = `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="4"/><path d="M6 12h4M8 10v4"/><circle cx="15" cy="11" r="1" fill="currentColor"/><circle cx="17.5" cy="13" r="1" fill="currentColor"/></svg>`;
+      }
+      return { className: `${p.bg} ${p.border} ${p.text}`, svg: icon };
+    }
+
+    // =========================================================================
+    // 4. SEKME GEZİNTİSİ (BOTTOM NAVIGATION)
+    // =========================================================================
+    function switchTab(tabId) {
+      appState.activeTab = tabId;
+      saveState();
+
+      document.querySelectorAll('.tab-section').forEach(sec => {
+        sec.classList.add('hidden');
+      });
+      const target = document.getElementById(`tab-${tabId}`);
+      if (target) {
+        target.classList.remove('hidden');
+      }
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        const isActive = btn.dataset.tab === tabId;
+        btn.className = isActive
+          ? 'nav-btn flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition text-emerald-400 bg-emerald-500/10'
+          : 'nav-btn flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition text-slate-400 hover:text-slate-200';
+      });
+
+      document.getElementById('main-content').scrollTop = 0;
+      window.scrollTo(0, 0);
+
+      if (tabId === 'system') renderSystemTab();
+      if (tabId === 'library') renderLibrary();
+    }
+
+    // =========================================================================
+    // 5. SEKME 1: KÜTÜPHANE OLUŞTURMA, ARAMA, FİLTRE VE HIZLI AYARLAR
+    // =========================================================================
+    function renderLibrary() {
+      const grid = document.getElementById('library-grid');
+      const emptyBox = document.getElementById('library-empty');
+
+      // Özet istatistikleri güncelle
+      const totalMB = appState.games.reduce((sum, g) => sum + (g.sizeMB || 0), 0);
+      document.getElementById('stat-game-count').textContent = appState.games.length;
+      document.getElementById('stat-total-size').textContent = formatSizeFromMB(totalMB);
+
+      // Filtreleme
+      const q = currentSearch.trim().toLowerCase();
+      const filtered = appState.games.filter(g => {
+        const matchesQuery = !q ||
+          g.name.toLowerCase().includes(q) ||
+          g.legacyAndroid.toLowerCase().includes(q) ||
+          g.ext.toLowerCase().includes(q) ||
+          (g.packageId && g.packageId.toLowerCase().includes(q));
+
+        if (!matchesQuery) return false;
+        if (currentFilter === 'XAPK') return g.ext === 'XAPK';
+        if (currentFilter === 'APK') return g.ext === 'APK' || g.ext === 'APK+OBB';
+        if (currentFilter === 'BRIDGE') return g.modules && g.modules.includes('armBridge');
+        return true;
+      });
+
+      grid.innerHTML = '';
+
+      if (filtered.length === 0) {
+        emptyBox.classList.remove('hidden');
+        return;
+      }
+      emptyBox.classList.add('hidden');
+
+      filtered.forEach(game => {
+        const art = getGameArtworkSVG(game.genre, game.accent);
+        const extColor = (game.ext === 'XAPK' || game.ext === 'APK+OBB')
+          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+          : 'bg-sky-500/15 text-sky-300 border-sky-500/30';
+
+        const compatColor = game.compatScore >= 90
+          ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+          : game.compatScore >= 75
+            ? 'text-sky-300 bg-sky-500/10 border-sky-500/30'
+            : 'text-amber-300 bg-amber-500/10 border-amber-500/30';
+
+        const card = document.createElement('div');
+        card.className = 'glass-card glass-card-hover rounded-3xl p-4 flex flex-col justify-between gap-4';
+
+        card.innerHTML = `
+          <div class="space-y-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 ${art.className}">
+                  ${art.svg}
+                </div>
+                <div class="min-w-0">
+                  <h3 class="text-sm sm:text-base font-extrabold text-white truncate">${escapeHtml(game.name)}</h3>
+                  <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border ${extColor}">${escapeHtml(game.ext)}</span>
+                    <span class="text-[11px] font-mono text-slate-400">${formatSizeFromMB(game.sizeMB)}</span>
+                    <span class="text-slate-600">•</span>
+                    <span class="text-[11px] font-medium text-amber-300/90">${escapeHtml(game.legacyAndroid)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <span class="px-2.5 py-1 rounded-xl text-[11px] font-extrabold border shrink-0 ${compatColor}">
+                %${game.compatScore}
+              </span>
+            </div>
+
+            <!-- Aktif Yama & Profil Rozetleri -->
+            <div class="flex flex-wrap gap-1.5 text-[10px] font-medium">
+              <span class="px-2 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-300">
+                ${game.settings.fps} FPS
+              </span>
+              <span class="px-2 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-sky-300">
+                Ölçek %${game.settings.resolutionScale}
+              </span>
+              ${game.modules.includes('armBridge') ? `
+                <span class="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                  ARMv7→64
+                </span>` : ''}
+              ${game.hasObb ? `
+                <span class="px-2 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-300">
+                  OBB Bağlı
+                </span>` : ''}
+              ${sessionFileStore.has(game.id) ? `
+                <span class="px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                  Dosya İndirmeye Hazır
+                </span>` : ''}
+            </div>
+          </div>
+
+          <!-- Kart Alt Eylem Butonları -->
+          <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+            <button onclick="launchGame('${game.id}')" class="flex-1 neon-btn py-2.5 px-4 rounded-xl text-xs font-extrabold text-slate-950 inline-flex items-center justify-center gap-1.5">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Oyunu Başlat
+            </button>
+            <button onclick="openDownloadModalById('${game.id}')" title="Dosyayı Cihaza İndir" class="p-2.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-sky-300 transition">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button onclick="openGameSettings('${game.id}')" title="Hızlı Ayarlar" class="p-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-200 transition">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+            </button>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    // Oyun Hızlı Ayarlar Modalını Aç
+    function openGameSettings(gameId) {
+      const game = appState.games.find(g => g.id === gameId);
+      if (!game) return;
+      editingGameId = gameId;
+
+      document.getElementById('settings-game-title').textContent = game.name;
+      updateFpsButtonStyles(game.settings.fps);
+
+      const resRange = document.getElementById('settings-res-range');
+      resRange.value = game.settings.resolutionScale;
+      document.getElementById('settings-res-label').textContent = '%' + game.settings.resolutionScale;
+      document.getElementById('settings-control-mode').value = game.settings.controlMode;
+
+      const modal = document.getElementById('modal-game-settings');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeGameSettings() {
+      const modal = document.getElementById('modal-game-settings');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      editingGameId = null;
+    }
+
+    function updateFpsButtonStyles(selectedFps) {
+      document.querySelectorAll('.fps-opt').forEach(btn => {
+        const val = Number(btn.dataset.fps);
+        if (val === Number(selectedFps)) {
+          btn.className = 'fps-opt py-2.5 rounded-xl text-xs font-bold border transition bg-emerald-500/20 border-emerald-500/50 text-emerald-300';
+          btn.dataset.selected = 'true';
+        } else {
+          btn.className = 'fps-opt py-2.5 rounded-xl text-xs font-bold border transition bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700';
+          btn.dataset.selected = 'false';
+        }
+      });
+    }
+
+    // Özel Onay Penceresi
+    function openConfirmModal(title, message, onConfirm) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-message').textContent = message;
+      confirmCallback = onConfirm;
+      const modal = document.getElementById('modal-confirm');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeConfirmModal() {
+      const modal = document.getElementById('modal-confirm');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      confirmCallback = null;
+    }
+
+    // =========================================================================
+    // 6. SEKME 2: APK / XAPK YÜKLEME, PK HEADER DOĞRULAMA VE YAMALAYICI
+    // =========================================================================
+    function renderDemoPackages() {
+      const container = document.getElementById('demo-packages-grid');
+      container.innerHTML = '';
+
+      DEMO_PACKAGES.forEach(pkg => {
+        const art = getGameArtworkSVG(pkg.genre, pkg.accent);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-left p-3 rounded-2xl bg-slate-900/75 hover:bg-slate-800/90 border border-slate-800 hover:border-emerald-500/45 transition flex items-center gap-3 group';
+        btn.innerHTML = `
+          <div class="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${art.className}">
+            ${art.svg}
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-bold text-slate-100 group-hover:text-emerald-300 truncate transition">${escapeHtml(pkg.name)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5">
+              <span class="font-bold ${pkg.ext === 'XAPK' ? 'text-emerald-400' : 'text-sky-400'}">${pkg.ext}</span>
+              <span>•</span>
+              <span class="font-mono">${formatSizeFromMB(pkg.sizeMB)}</span>
+              <span>•</span>
+              <span>${pkg.legacyAndroid}</span>
+            </p>
+          </div>
+          <svg class="w-4 h-4 text-slate-600 group-hover:text-emerald-400 shrink-0 transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        `;
+        btn.addEventListener('click', () => {
+          if (isPatching) { showToast('Yama işlemi sürerken paket değiştirilemez.', 'warn'); return; }
+          hideUploadError();
+          selectPackageForPatching({ ...pkg, isRealFile: false });
+          showToast(`${pkg.name} analiz edildi ve yamalama için hazırlandı.`, 'info');
+        });
+        container.appendChild(btn);
+      });
+    }
+
+    function showUploadError(title, msg) {
+      const box = document.getElementById('upload-error-box');
+      document.getElementById('upload-error-title').textContent = title;
+      document.getElementById('upload-error-msg').textContent = msg;
+      box.classList.remove('hidden');
+    }
+
+    function hideUploadError() {
+      document.getElementById('upload-error-box').classList.add('hidden');
+    }
+
+    /**
+     * Gerçek dosya seçildiğinde veya sürüklendiğinde:
+     * 1) Uzantıyı (.apk / .xapk) kontrol eder.
+     * 2) 5 GB (5120 MB) boyut sınırını kontrol eder.
+     * 3) File.slice(0, 4) kullanarak tarayıcıyı dondurmadan ilk 4 baytı okur ve
+     *    ZIP/APK imzasını (PK header: 0x50 0x4B 0x03 0x04) doğrular.
+     */
+    // APK + OBB çifti: tarayıcıda gerçek dosyalar bellekte tutulur, OBB içeriği değiştirilmez.
+    let pairedApkFile = null;
+    let pairedObbFile = null;
+    let pairedPackageId = '';
+
+    function validPackageId(value) {
+      return /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(value || '');
+    }
+
+    function setPairStatus(message, isError = false) {
+      const el = document.getElementById('pair-status');
+      if (!el) return;
+      el.textContent = message;
+      el.className = 'text-xs ' + (isError ? 'text-rose-300' : 'text-slate-300');
+    }
+
+    function analyzeApkObbPair() {
+      pairedApkFile = document.getElementById('pair-apk-input').files[0] || null;
+      pairedObbFile = document.getElementById('pair-obb-input').files[0] || null;
+      pairedPackageId = document.getElementById('pair-package-id').value.trim();
+
+      if (!pairedApkFile || !pairedObbFile) {
+        setPairStatus('Hem bir APK hem de bir OBB dosyası seçmelisiniz.', true);
+        return;
+      }
+      if (!validPackageId(pairedPackageId)) {
+        setPairStatus('Paket kimliği geçersiz. Örnek biçim: com.studyo.oyun', true);
+        return;
+      }
+      const total = pairedApkFile.size + pairedObbFile.size;
+      if (pairedApkFile.size > MAX_FILE_BYTES || pairedObbFile.size > MAX_FILE_BYTES || total > MAX_FILE_BYTES) {
+        setPairStatus('APK + OBB toplamı 5 GB sınırını aşıyor.', true);
+        return;
+      }
+      if (!pairedApkFile.size || !pairedObbFile.size) {
+        setPairStatus('Boş (0 bayt) APK veya OBB dosyası kullanılamaz.', true);
+        return;
+      }
+      const obbName = pairedObbFile.name;
+      const obbMatch = obbName.match(/^(main|patch)\.(\d+)\.([A-Za-z0-9_.]+)\.obb$/i);
+      if (obbMatch && obbMatch[3].toLowerCase() !== pairedPackageId.toLowerCase()) {
+        setPairStatus(`OBB dosyasındaki paket kimliği (${obbMatch[3]}) ile girilen kimlik eşleşmiyor.`, true);
+        return;
+      }
+      const inferred = obbMatch ? obbName : `main.1.${pairedPackageId}.obb`;
+      document.getElementById('btn-pair-export').disabled = false;
+      setPairStatus(`Eşleştirme hazır: ${pairedApkFile.name} + ${obbName}. Hedef: Android/obb/${pairedPackageId}/${inferred}`);
+      const cleanTitle = pairedApkFile.name.replace(/\.apk$/i, '').replace(/[_\-.]+/g, ' ').trim();
+      const pairId = 'pair-' + Date.now();
+      const resolvedObbName = obbMatch ? obbName : inferred;
+      sessionFileStore.set(pairId, {
+        apkFile: pairedApkFile,
+        obbFile: pairedObbFile,
+        obbTargetName: resolvedObbName
+      });
+      selectPackageForPatching({
+        id: pairId,
+        name: cleanTitle || pairedPackageId,
+        fileName: pairedApkFile.name + ' + ' + pairedObbFile.name,
+        ext: 'APK+OBB',
+        sizeMB: total / (1024 * 1024),
+        legacyAndroid: 'Analiz gerekli',
+        legacyApi: 14,
+        arch: 'APK içinden doğrulanmadı',
+        hasObb: true,
+        genre: 'arcade',
+        accent: 'sky',
+        signature: 'Dosyalar seçildi; APK imzası ayrıca doğrulanmalı',
+        isRealFile: true,
+        packageId: pairedPackageId,
+        apkFile: pairedApkFile,
+        obbFile: pairedObbFile,
+        obbTargetName: resolvedObbName
+      });
+      showToast('APK ve OBB eşleştirildi. OBB hedef dizini hazırlandı.', 'success');
+    }
+
+    async function exportApkObbBundle() {
+      if (!pairedApkFile || !pairedObbFile || !pairedApkFile.size || !pairedObbFile.size || !validPackageId(pairedPackageId)) {
+        setPairStatus('Önce geçerli APK + OBB dosyalarını seçip eşleştirin.', true);
+        return;
+      }
+      if (!window.JSZip) {
+        showToast('ZIP motoru yüklenemedi. İnternet bağlantısını kontrol edin.', 'error');
+        return;
+      }
+      const button = document.getElementById('btn-pair-export');
+      button.disabled = true;
+      button.textContent = 'ZIP hazırlanıyor...';
+      try {
+        const zip = new JSZip();
+        zip.file(pairedApkFile.name, pairedApkFile);
+        const obbName = pairedObbFile.name.match(/^(main|patch)\.(\d+)\.([A-Za-z0-9_.]+)\.obb$/i)
+          ? pairedObbFile.name : `main.1.${pairedPackageId}.obb`;
+        zip.file(`Android/obb/${pairedPackageId}/${obbName}`, pairedObbFile);
+        zip.file('RETRODROID-README.txt',
+          `APK + OBB klasör paketi\nPaket kimliği: ${pairedPackageId}\nOBB hedefi: Android/obb/${pairedPackageId}/${obbName}\n\nBu ZIP doğrudan kurulabilir APK değildir. APK dosyasını Android'in paket yükleyicisiyle kurun; OBB dosyasını belirtilen Android/obb klasörüne kopyalayın. OBB içeriği değiştirilmemiştir.`);
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${pairedPackageId.replace(/\./g, '_')}_APK_OBB.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+        setPairStatus(`ZIP hazırlandı: APK kökte, OBB Android/obb/${pairedPackageId}/ altında. OBB verisi değiştirilmedi.`);
+        showToast('APK + OBB klasör ZIP paketi indirildi.', 'success');
+      } catch (err) {
+        console.error(err);
+        setPairStatus('ZIP oluşturulamadı: ' + (err.message || 'bilinmeyen hata'), true);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Kurulum klasörünü ZIP indir';
+      }
+    }
+
+    async function handleRealFile(file) {
+      if (isPatching) { showToast('Yama işlemi sürerken paket değiştirilemez.', 'warn'); return; }
+      hideUploadError();
+      if (!file) return;
+
+      const fileName = file.name || 'bilinmeyen_paket.apk';
+      const lower = fileName.toLowerCase();
+      const isApk = lower.endsWith('.apk');
+      const isXapk = lower.endsWith('.xapk');
+      const isObb = lower.endsWith('.obb');
+
+      if (isObb) {
+        try {
+          const obbInput = document.getElementById('pair-obb-input');
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          obbInput.files = transfer.files;
+          pairedObbFile = file;
+        } catch (err) {
+          setPairStatus('Bu tarayıcı sürüklenen OBB dosyasını alana aktaramadı. OBB alanından dosyayı elle seçin.', true);
+          document.getElementById('pair-obb-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        setPairStatus(`OBB seçildi: ${fileName}. Şimdi eşleşen APK dosyasını ve paket kimliğini girin.`);
+        document.getElementById('pair-apk-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showToast('OBB alındı. APK ile eşleştirme bölümünü tamamlayın.', 'info');
+        return;
+      }
+
+      if (!isApk && !isXapk) {
+        showUploadError(
+          'Desteklenmeyen Dosya Uzantısı',
+          `"${fileName}" geçerli bir Android paketi değil. Lütfen yalnızca .apk veya .xapk uzantılı dosyalar yükleyin.`
+        );
+        showToast('APK, XAPK ve eşleştirilmiş OBB dosyaları desteklenir.', 'error');
+        return;
+      }
+
+      // 5 GB (5120 MB) Gerçek Boyut Kontrolü
+      const sizeMB = file.size / (1024 * 1024);
+      if (file.size > MAX_FILE_BYTES) {
+        const sizeGB = (file.size / (1024 * 1024 * 1024)).toFixed(2);
+        showUploadError(
+          'Maksimum 5 GB Dosya Boyutu Aşıldı!',
+          `Seçilen paket (${sizeGB} GB), RetroDroid Compat motorunun desteklediği maksimum 5.00 GB (5120 MB) sınırını aşıyor.`
+        );
+        showToast(`Dosya çok büyük (${sizeGB} GB). Maksimum limit 5 GB.`, 'error');
+        return;
+      }
+
+      // File.slice ile yalnızca ilk 4 baytı okuyarak ZIP/APK PK Header doğrulaması
+      let signatureText = 'Okunamadı';
+      let isValidPK = false;
+      try {
+        const headerBlob = file.slice(0, 4);
+        const buffer = await headerBlob.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+
+        if (bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4B) {
+          isValidPK = true;
+          const hex = Array.from(bytes).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join('');
+          signatureText = `0x${hex} (Geçerli PK/ZIP)`;
+        } else if (bytes.length > 0) {
+          const hex = Array.from(bytes).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join('');
+          signatureText = `0x${hex} (Uyarı: PK Başlığı Yok)`;
+        } else {
+          signatureText = 'Boş Dosya (0 Bayt)';
+        }
+      } catch (err) {
+        console.error('Bayt başlığı okuma hatası:', err);
+        signatureText = 'Başlık Okuma Hatası';
+      }
+
+      const cleanTitle = fileName
+        .replace(/\.(xapk|apk)$/i, '')
+        .replace(/[_\-.]+/g, ' ')
+        .trim() || 'Özel Eski Oyun';
+
+      const ext = isXapk ? 'XAPK' : 'APK';
+      const customId = 'custom-' + Date.now();
+      sessionFileStore.set(customId, { singleFile: file });
+      const analyzedPkg = {
+        id: customId,
+        name: cleanTitle,
+        fileName: fileName,
+        ext: ext,
+        sizeMB: Math.max(sizeMB, 0.01),
+        legacyAndroid: isXapk ? 'Android 4.4' : 'Android 4.0',
+        legacyApi: isXapk ? 19 : 14,
+        arch: 'ARMv7a (32-bit)',
+        hasObb: isXapk,
+        genre: isXapk ? 'fps' : 'arcade',
+        accent: isXapk ? 'emerald' : 'sky',
+        signature: signatureText,
+        isValidPK: isValidPK,
+        isRealFile: true,
+        rawFile: file,
+        packageId: 'com.legacy.' + cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
+      };
+
+      // Render sunucusu bağlıysa ve dosya boyutu sunucu limiti içindeyse gerçek aapt analizi yap
+      const apiBase = getServerBaseUrl();
+      if (serverOnline && apiBase && sizeMB <= serverMaxUploadMB) {
+        showToast(`"${fileName}" Render sunucusunda gerçek aapt ile analiz ediliyor...`, 'info');
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await fetch(`${apiBase}/api/analyze`, { method: 'POST', body: fd });
+          if (res.ok) {
+            const meta = await res.json();
+            analyzedPkg.serverJobId = meta.jobId;
+            if (meta.appName) analyzedPkg.name = meta.appName;
+            if (meta.packageId && meta.packageId !== 'bilinmiyor') analyzedPkg.packageId = meta.packageId;
+            if (meta.legacyAndroid) analyzedPkg.legacyAndroid = meta.legacyAndroid;
+            if (meta.targetSdk || meta.minSdk) analyzedPkg.legacyApi = meta.targetSdk || meta.minSdk;
+            if (Array.isArray(meta.abis) && meta.abis.length) analyzedPkg.arch = meta.abis.join(', ');
+            analyzedPkg.hasObb = Boolean(meta.hasObb || isXapk);
+            analyzedPkg.signature = `${signatureText} • aapt OK`;
+            sessionFileStore.set(customId, { singleFile: file, serverJobId: meta.jobId });
+            selectPackageForPatching(analyzedPkg);
+            showToast(`Render aapt analizi tamamlandı: ${analyzedPkg.packageId} (API ${analyzedPkg.legacyApi})`, 'success');
+            return;
+          } else {
+            const errTxt = await res.text();
+            showToast(`Sunucu analizi başarısız (${res.status}), yerel analiz kullanılıyor: ${errTxt.slice(0, 80)}`, 'warn');
+          }
+        } catch (err) {
+          console.warn('Render analiz hatası, yerel moda düşülüyor:', err);
+          showToast('Render sunucusuna gönderilemedi, yerel tarayıcı analizi kullanılıyor.', 'warn');
+        }
+      } else if (serverOnline && sizeMB > serverMaxUploadMB) {
+        showToast(`Dosya (${formatSizeFromMB(sizeMB)}) Render limitini (${serverMaxUploadMB} MB) aştığı için yerel modda inceleniyor.`, 'info');
+      }
+
+      selectPackageForPatching(analyzedPkg);
+
+      if (isValidPK) {
+        showToast(`Geçerli ${ext} paketi (PK imzası) doğrulandı: ${formatSizeFromMB(analyzedPkg.sizeMB)}`, 'success');
+      } else {
+        showToast('Uyarı: Dosyada standart PK/ZIP başlığı tespit edilmedi, yine de incelenebilir.', 'warn');
+      }
+    }
+
+    function selectPackageForPatching(pkg) {
+      if (isPatching) { showToast('Yama işlemi sürerken paket değiştirilemez.', 'warn'); return; }
+      selectedPackage = pkg;
+
+      // Aktif profilin varsayılan modüllerini uygula
+      const profile = ENGINE_PROFILES.find(p => p.id === appState.activeProfile) || ENGINE_PROFILES[0];
+      activeModuleIds = new Set(profile.defaultModules);
+      if (pkg.ext === 'XAPK' || pkg.ext === 'APK+OBB' || pkg.hasObb) activeModuleIds.add('xapkObb');
+
+      const card = document.getElementById('selected-package-card');
+      card.classList.remove('hidden');
+
+      const art = getGameArtworkSVG(pkg.genre, pkg.accent);
+      const iconBox = document.getElementById('pkg-icon-box');
+      iconBox.className = `w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${art.className}`;
+      iconBox.innerHTML = art.svg;
+
+      document.getElementById('pkg-name').textContent = pkg.name;
+      document.getElementById('pkg-filename').textContent = pkg.fileName;
+
+      const extBadge = document.getElementById('pkg-ext-badge');
+      extBadge.textContent = pkg.ext;
+      extBadge.className = pkg.ext === 'XAPK'
+        ? 'px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+        : 'px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-sky-500/15 text-sky-300 border border-sky-500/30';
+
+      document.getElementById('pkg-size').textContent = formatSizeFromMB(pkg.sizeMB);
+      document.getElementById('pkg-android').textContent = `${pkg.legacyAndroid} (API ${pkg.legacyApi})`;
+
+      const sigEl = document.getElementById('pkg-signature');
+      sigEl.textContent = pkg.signature;
+      sigEl.className = pkg.signature.includes('Uyarı') || pkg.signature.includes('Boş')
+        ? 'font-bold text-amber-400 font-mono mt-0.5 block truncate'
+        : 'font-bold text-emerald-400 font-mono mt-0.5 block truncate';
+
+      document.getElementById('pkg-arch').textContent = `${pkg.arch} • ${pkg.hasObb ? 'OBB Var' : 'OBB Yok'}`;
+
+      // Önceki terminal panelini gizle
+      document.getElementById('patcher-terminal-panel').classList.add('hidden');
+
+      renderPatchModules();
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function calculateCompatScore() {
+      let score = 0;
+      PATCH_MODULES.forEach(mod => {
+        if (activeModuleIds.has(mod.id)) score += mod.weight;
+      });
+      // APK paketlerinde OBB modülü kapalı olsa bile puan kaybı olmasın
+      if (selectedPackage && selectedPackage.ext === 'APK' && !activeModuleIds.has('xapkObb')) {
+        score += 14;
+      }
+      return Math.min(100, Math.max(42, score));
+    }
+
+    function renderPatchModules() {
+      const list = document.getElementById('patch-modules-list');
+      list.innerHTML = '';
+
+      PATCH_MODULES.forEach(mod => {
+        const checked = activeModuleIds.has(mod.id);
+        const label = document.createElement('label');
+        label.className = `flex items-start justify-between gap-3 p-3 rounded-2xl border cursor-pointer transition ${
+          checked
+            ? 'bg-emerald-500/[0.06] border-emerald-500/30'
+            : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+        }`;
+
+        label.innerHTML = `
+          <div class="space-y-0.5 pr-1">
+            <span class="text-xs font-bold ${checked ? 'text-white' : 'text-slate-300'} block">${mod.title}</span>
+            <span class="text-[11px] text-slate-400 leading-snug block">${mod.desc}</span>
+          </div>
+          <div class="relative shrink-0 mt-0.5">
+            <input type="checkbox" class="sr-only toggle-checkbox" data-mod-id="${mod.id}" ${checked ? 'checked' : ''} />
+            <div class="toggle-track w-11 h-6 bg-slate-800 border border-slate-700 rounded-full transition">
+              <div class="toggle-thumb w-4 h-4 bg-slate-400 rounded-full m-0.5 transition transform"></div>
+            </div>
+          </div>
+        `;
+
+        const input = label.querySelector('input');
+        input.addEventListener('change', (e) => {
+          if (isPatching) { e.target.checked = !e.target.checked; return; }
+          if (e.target.checked) activeModuleIds.add(mod.id);
+          else activeModuleIds.delete(mod.id);
+          renderPatchModules();
+        });
+
+        list.appendChild(label);
+      });
+
+      const score = calculateCompatScore();
+      document.getElementById('active-modules-count').textContent = `${activeModuleIds.size}/${PATCH_MODULES.length} Modül Aktif`;
+      document.getElementById('pkg-compat-estimate').textContent = `Tahmini Uyum: %${score}`;
+    }
+
+    // Adım adım arayüz simülasyonu; gerçek APK baytları değiştirilmez
+    async function runCompatibilityPatcher() {
+      if (!selectedPackage || isPatching) return;
+      isPatching = true;
+
+      const btnPatch = document.getElementById('btn-start-patch');
+      btnPatch.disabled = true;
+
+      try {
+      const panel = document.getElementById('patcher-terminal-panel');
+      const logsEl = document.getElementById('terminal-logs');
+      const bar = document.getElementById('patch-progress-bar');
+      const pctLabel = document.getElementById('patch-percent-label');
+      const statusTitle = document.getElementById('terminal-status-title');
+      const statusDot = document.getElementById('terminal-status-dot');
+      const completeActions = document.getElementById('patch-complete-actions');
+
+      panel.classList.remove('hidden');
+      completeActions.classList.add('hidden');
+      logsEl.innerHTML = '';
+      bar.style.width = '0%';
+      pctLabel.textContent = '0%';
+      statusTitle.textContent = `"${selectedPackage.name}" Uyumlu Hale Getiriliyor...`;
+      statusDot.className = 'w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping';
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      const pkg = selectedPackage;
+      const mods = Array.from(activeModuleIds);
+      const compatScoreAtStart = calculateCompatScore();
+
+      const steps = [
+        { pct: 10, tag: 'INIT', color: 'text-sky-400', msg: `Paket akışı açıldı: ${pkg.fileName} (${formatSizeFromMB(pkg.sizeMB)})` },
+        { pct: 22, tag: 'VERIFY', color: 'text-emerald-400', msg: `Başlık doğrulandı: ${pkg.signature} • Paket ID: ${pkg.packageId}` },
+        { pct: 35, tag: 'MANIFEST', color: 'text-amber-300', msg: mods.includes('targetSdk')
+            ? `Simülasyon: AndroidManifest.xml için targetSdkVersion API ${pkg.legacyApi} → API 36 (Android 16) yükseltme adımı gösteriliyor.`
+            : `Simülasyon: TargetSDK adımı atlandı; manifest dosyası okunmadı.` },
+        { pct: 50, tag: 'OBB', color: 'text-violet-400', msg: (pkg.hasObb && mods.includes('xapkObb'))
+            ? `Simülasyon: XAPK/OBB verileri /Android/obb/${pkg.packageId}/ hedef yoluna eşleniyor; dosya sistemi değiştirilmez.`
+            : `Simülasyon: Scoped Storage hedef profili seçildi; Android dosya sistemi değiştirilmedi.` },
+        { pct: 66, tag: 'ABI', color: 'text-emerald-400', msg: mods.includes('armBridge')
+            ? `Simülasyon: ${pkg.arch} için ${appState.engineSettings.abi} köprüsü etkinmiş gibi gösteriliyor; gerçek ikili çeviri yapılmıyor.`
+            : `Simülasyon: Yerel ABI profili seçildi (32→64 köprü devre dışı).` },
+        { pct: 80, tag: 'GFX', color: 'text-sky-400', msg: mods.includes('gles2')
+            ? `Simülasyon: OpenGL ES 2.0 için ${appState.engineSettings.renderer} grafik profili seçildi; shader derlenmedi.`
+            : `Standart grafik boru hattı yapılandırıldı.` },
+        { pct: 91, tag: 'UI', color: 'text-teal-300', msg: mods.includes('notchFix')
+            ? `Simülasyon: 20:9 ekran kesimi ve yüksek yenileme hızı ölçekleme profili seçildi; APK değiştirilmedi.`
+            : `Simülasyon: Klasik 16:9 ekran profili seçildi.` },
+        { pct: 100, tag: 'SIGN', color: 'text-emerald-300', msg: mods.includes('resign')
+            ? `Simülasyon: APK v2/v3 yeniden imzalama adımı gösterildi; gerçek imza uygulanmadı.`
+            : `Simülasyon tamamlandı; orijinal APK imzalanmadı veya değiştirilmedi.` }
+      ];
+
+      let realServerResult = null;
+      const apiBase = getServerBaseUrl();
+
+      if (serverOnline && apiBase && pkg.serverJobId) {
+        const appendLog = (tag, color, msg) => {
+          const time = new Date().toTimeString().slice(0, 8);
+          const line = document.createElement('div');
+          line.innerHTML = `<span class="text-slate-600">[${time}]</span> <span class="${color} font-bold">[${tag}]</span> <span class="text-slate-200">${escapeHtml(msg)}</span>`;
+          logsEl.appendChild(line);
+          logsEl.scrollTop = logsEl.scrollHeight;
+        };
+
+        appendLog('RENDER', 'text-sky-400', `Gerçek sunucu işleme gönderiliyor: ${apiBase}/api/patch-sign (Job: ${pkg.serverJobId})`);
+        bar.style.width = '20%';
+        pctLabel.textContent = '20%';
+
+        const fd = new FormData();
+        fd.append('jobId', pkg.serverJobId);
+        fd.append('targetSdk', '34');
+        fd.append('applyTargetSdk', mods.includes('targetSdk') ? 'true' : 'false');
+        fd.append('resign', mods.includes('resign') ? 'true' : 'false');
+
+        appendLog('WAIT', 'text-amber-300', 'apktool + zipalign + apksigner çalışıyor (Render Free CPU üzerinde 15-60 sn sürebilir)...');
+        bar.style.width = '55%';
+        pctLabel.textContent = '55%';
+
+        const res = await fetch(`${apiBase}/api/patch-sign`, { method: 'POST', body: fd });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Render hatası (${res.status}): ${errText.slice(0, 220)}`);
+        }
+        realServerResult = await res.json();
+        (realServerResult.logs || []).forEach(l => appendLog('SERVER', 'text-emerald-400', l));
+        appendLog('READY', 'text-emerald-300', `İmzalı APK cihaza indirilmeye hazır: ${realServerResult.fileName}`);
+        bar.style.width = '100%';
+        pctLabel.textContent = '100%';
+      } else {
+        for (const step of steps) {
+          await new Promise(r => setTimeout(r, 420 + Math.random() * 240));
+          const time = new Date().toTimeString().slice(0, 8);
+          const line = document.createElement('div');
+          line.innerHTML = `<span class="text-slate-600">[${time}]</span> <span class="${step.color} font-bold">[${step.tag}]</span> <span class="text-slate-200">${escapeHtml(step.msg)}</span>`;
+          logsEl.appendChild(line);
+          logsEl.scrollTop = logsEl.scrollHeight;
+
+          bar.style.width = step.pct + '%';
+          pctLabel.textContent = step.pct + '%';
+        }
+      }
+
+      // Kütüphaneye ekle veya güncelle
+      const compatScore = compatScoreAtStart;
+      const newGame = {
+        ...pkg,
+        compatScore,
+        patchedAt: new Date().toISOString(),
+        modules: mods,
+        settings: {
+          fps: appState.activeProfile === 'performance' ? 90 : 60,
+          resolutionScale: 100,
+          controlMode: (pkg.ext === 'XAPK' || pkg.ext === 'APK+OBB') ? 'Sanal Gamepad Katmanı' : 'Eski Dokunmatik Ölçekleme'
+        }
+      };
+
+      const existingIdx = appState.games.findIndex(g => g.id === newGame.id || g.fileName === newGame.fileName);
+      if (existingIdx >= 0) {
+        const oldId = appState.games[existingIdx].id;
+        if (oldId !== newGame.id && sessionFileStore.has(oldId) && !sessionFileStore.has(newGame.id)) {
+          sessionFileStore.set(newGame.id, sessionFileStore.get(oldId));
+        }
+        appState.games[existingIdx] = newGame;
+      } else {
+        appState.games.unshift(newGame);
+      }
+      const existingStore = sessionFileStore.get(newGame.id) || {};
+      if (pkg.rawFile) {
+        existingStore.singleFile = pkg.rawFile;
+      }
+      if (pkg.apkFile && pkg.obbFile) {
+        existingStore.apkFile = pkg.apkFile;
+        existingStore.obbFile = pkg.obbFile;
+        existingStore.obbTargetName = pkg.obbTargetName;
+      }
+      if (realServerResult && realServerResult.downloadUrl) {
+        existingStore.serverDownloadUrl = `${apiBase}${realServerResult.downloadUrl}`;
+        existingStore.serverFileName = realServerResult.fileName;
+        existingStore.serverSizeBytes = realServerResult.sizeBytes || 0;
+        newGame.serverDownloadUrl = existingStore.serverDownloadUrl;
+        newGame.serverFileName = existingStore.serverFileName;
+      }
+      if (Object.keys(existingStore).length > 0) {
+        sessionFileStore.set(newGame.id, existingStore);
+      }
+
+      // Shader önbelleğini hafifçe artır
+      appState.cacheMB = Math.min(2048, (appState.cacheMB || 420) + 45);
+      saveState();
+      renderLibrary();
+
+      lastPatchedGame = newGame;
+      if (realServerResult && realServerResult.downloadUrl) {
+        statusTitle.textContent = `Gerçek APK İmzalama Tamamlandı (%${compatScore}) — İndirmeye Hazır!`;
+        statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+        completeActions.classList.remove('hidden');
+        showToast(`${realServerResult.fileName} Render sunucusunda imzalandı! "Dosyayı Cihaza İndir" ile hemen indirebilirsiniz.`, 'success');
+      } else {
+        statusTitle.textContent = `Uyumluluk kontrol simülasyonu tamamlandı (%${compatScore})`;
+        statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+        completeActions.classList.remove('hidden');
+        showToast(`${newGame.name} simülasyon profili kütüphaneye eklendi. APK dosyası değiştirilmedi.`, 'info');
+      }
+      } catch (err) {
+        console.error('Uyumluluk simülasyonu hatası:', err);
+        const statusTitle = document.getElementById('terminal-status-title');
+        const statusDot = document.getElementById('terminal-status-dot');
+        if (statusTitle) statusTitle.textContent = 'İşlem tamamlanamadı';
+        if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-400';
+        showToast('İşlem sırasında hata oluştu. Dosya değiştirilmedi; tekrar deneyin.', 'error');
+      } finally {
+        btnPatch.disabled = false;
+        isPatching = false;
+      }
+    }
+
+    // Güvenli tarayıcı indirme tetikleyici (Android Chrome/WebView için güvenli URL ömrüyle)
+    function triggerBlobDownload(blobOrFile, downloadName) {
+      const url = URL.createObjectURL(blobOrFile);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = downloadName;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+
+    function buildCompatibilityReportObj(game) {
+      const activeMods = Array.isArray(game.modules) ? game.modules : Array.from(activeModuleIds);
+      return {
+        engine: 'RetroDroid Compat Engine v4.2',
+        generatedAt: new Date().toISOString(),
+        package: {
+          name: game.name,
+          fileName: game.fileName,
+          packageId: game.packageId,
+          format: game.ext,
+          sizeMB: Number((game.sizeMB || 0).toFixed(2)),
+          maxLimitGB: 5.0,
+          signatureCheck: game.signature,
+          legacyAndroid: game.legacyAndroid,
+          legacyApiLevel: game.legacyApi,
+          sourceArchitecture: game.arch,
+          obbMounted: Boolean(game.hasObb)
+        },
+        compatibility: {
+          scorePercent: typeof game.compatScore === 'number' ? game.compatScore : calculateCompatScore(),
+          targetAndroidHost: 'Android 14/15/16 (API 34–36)',
+          appliedModules: activeMods.map(id => {
+            const m = PATCH_MODULES.find(x => x.id === id);
+            return m ? m.title : id;
+          }),
+          engineProfile: appState.activeProfile,
+          abiBridge: appState.engineSettings.abi,
+          graphicsBackend: appState.engineSettings.renderer
+        },
+        launchSettings: game.settings || {
+          fps: appState.activeProfile === 'performance' ? 90 : 60,
+          resolutionScale: 100,
+          controlMode: (game.ext === 'XAPK' || game.ext === 'APK+OBB') ? 'Sanal Gamepad Katmanı' : 'Eski Dokunmatik Ölçekleme'
+        }
+      };
+    }
+
+    function buildInstallGuideText(game, obbName) {
+      const pkgId = game.packageId || 'com.oyun.paket';
+      const lines = [
+        '====================================================',
+        'RetroDroid Compat — Cihaz Kurulum & Uyumluluk Notu',
+        '====================================================',
+        `Oyun Adı        : ${game.name}`,
+        `Paket Kimliği   : ${pkgId}`,
+        `Biçim / Boyut   : ${game.ext} (${formatSizeFromMB(game.sizeMB || 0)})`,
+        `Eski Hedef      : ${game.legacyAndroid} (API ${game.legacyApi || '?'})`,
+        `Motor Profili   : ${appState.activeProfile} | ${appState.engineSettings.abi}`,
+        `Grafik Arka Ucu : ${appState.engineSettings.renderer}`,
+        '',
+        'KURULUM ADIMLARI (ANDROID):',
+        '1) APK dosyasını telefonunuzun İndirilenler (Downloads) klasöründen açarak kurun.',
+        '   (Bilinmeyen kaynaklara izin vermeniz gerekebilir.)'
+      ];
+      if (game.hasObb || obbName) {
+        const targetObb = obbName || `main.1.${pkgId}.obb`;
+        lines.push(`2) OBB dosyasını telefon hafızasında şu klasöre kopyalayın:`);
+        lines.push(`   /Dahili Depolama/Android/obb/${pkgId}/${targetObb}`);
+        lines.push('3) Android 11+ cihazlarda dosya yöneticiniz izin isterse SAF (Klasör Erişimi) izni verin.');
+      }
+      lines.push('');
+      lines.push('NOT: Tarayıcı güvenlik modeli nedeniyle orijinal APK/OBB ikili dosyalarının');
+      lines.push('içeriği ve dijital imzası değiştirilmemiştir.');
+      return lines.join('\n');
+    }
+
+    // JSON Uyumluluk Raporu İndir
+    function downloadCompatibilityReport(game) {
+      if (!game) return;
+      const report = buildCompatibilityReportObj(game);
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8' });
+      const safeName = (game.name || 'paket').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      const dlName = `retrodroid_rapor_${safeName}.json`;
+      triggerBlobDownload(blob, dlName);
+      showToast(`Uyumluluk raporu (${dlName}) cihazınıza indirildi.`, 'info');
+    }
+
+    // =========================================================================
+    // 6.5 CİHAZA İNDİRME MERKEZİ (APK / XAPK / OBB / KURULUM ZIP / YEDEK)
+    // =========================================================================
+    function openDownloadModalById(gameId) {
+      const game = appState.games.find(g => g.id === gameId);
+      if (!game) return;
+      openDownloadModal(game);
+    }
+
+    function openDownloadModal(game) {
+      if (!game) return;
+      downloadingTarget = game;
+
+      document.getElementById('dl-game-title').textContent = game.name || 'Paket';
+      document.getElementById('dl-game-meta').textContent =
+        `${game.ext} • ${formatSizeFromMB(game.sizeMB || 0)} • ${game.packageId || 'Paket ID yok'}`;
+      document.getElementById('dl-progress-box').classList.add('hidden');
+
+      renderDownloadModalBody();
+
+      const modal = document.getElementById('modal-download-package');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeDownloadModal() {
+      const modal = document.getElementById('modal-download-package');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      downloadingTarget = null;
+    }
+
+    function setDownloadProgress(visible, label = '', pct = 0) {
+      const box = document.getElementById('dl-progress-box');
+      if (!visible) {
+        box.classList.add('hidden');
+        return;
+      }
+      box.classList.remove('hidden');
+      document.getElementById('dl-progress-label').textContent = label;
+      document.getElementById('dl-progress-pct').textContent = `${Math.round(pct)}%`;
+      document.getElementById('dl-progress-bar').style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    }
+
+    function renderDownloadModalBody() {
+      const game = downloadingTarget;
+      if (!game) return;
+
+      const entry = sessionFileStore.get(game.id) || null;
+      const banner = document.getElementById('dl-status-banner');
+      const list = document.getElementById('dl-options-list');
+      const reattachBox = document.getElementById('dl-reattach-box');
+      list.innerHTML = '';
+
+      const addOptionBtn = ({ title, subtitle, badge, accent, onClick }) => {
+        const accents = {
+          emerald: 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/40 text-emerald-200',
+          sky: 'bg-sky-500/15 hover:bg-sky-500/25 border-sky-500/35 text-sky-200',
+          violet: 'bg-violet-500/15 hover:bg-violet-500/25 border-violet-500/35 text-violet-200',
+          slate: 'bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200'
+        };
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-full text-left p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 ${accents[accent] || accents.slate}`;
+        btn.innerHTML = `
+          <div class="min-w-0">
+            <p class="text-xs sm:text-sm font-extrabold text-white truncate">${escapeHtml(title)}</p>
+            <p class="text-[11px] text-slate-300/80 mt-0.5 leading-snug">${escapeHtml(subtitle)}</p>
+          </div>
+          <span class="px-2.5 py-1 rounded-xl bg-slate-950/70 border border-white/10 font-mono text-[10px] font-bold shrink-0">
+            ${escapeHtml(badge)}
+          </span>
+        `;
+        btn.addEventListener('click', onClick);
+        list.appendChild(btn);
+      };
+
+      const safeBase = (game.packageId || game.name || 'retrodroid_paket')
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '_');
+
+      // Render sunucusunda gerçek imzalı APK üretildiyse en üstte göster
+      if (entry && entry.serverDownloadUrl) {
+        addOptionBtn({
+          title: `İmzalı Gerçek APK'yı Sunucudan İndir (v2/v3)`,
+          subtitle: `${entry.serverFileName || 'uyumlu.apk'}${entry.serverSizeBytes ? ' • ' + formatSizeFromMB(entry.serverSizeBytes / 1048576) : ''} — Render apktool + apksigner çıktısı`,
+          badge: 'İMZALI APK',
+          accent: 'emerald',
+          onClick: () => {
+            const a = document.createElement('a');
+            a.href = entry.serverDownloadUrl;
+            a.download = entry.serverFileName || `${safeBase}_uyumlu.apk`;
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast(`${entry.serverFileName || 'İmzalı APK'} cihazınıza indiriliyor!`, 'success');
+          }
+        });
+      }
+
+      if (entry && entry.apkFile && entry.obbFile) {
+        // DURUM 1: APK + OBB çifti bellekte mevcut
+        const obbName = entry.obbTargetName || entry.obbFile.name;
+        banner.className = 'rounded-2xl p-3.5 text-xs border leading-relaxed bg-emerald-500/10 border-emerald-500/35 text-emerald-200';
+        banner.textContent = `Gerçek APK (${formatSizeFromMB(entry.apkFile.size / 1048576)}) ve OBB (${formatSizeFromMB(entry.obbFile.size / 1048576)}) dosyaları bu oturumda hazır. Doğrudan cihazınıza indirebilirsiniz.`;
+        reattachBox.classList.add('hidden');
+
+        addOptionBtn({
+          title: 'Kurulum Klasörü Paketi İndir (.zip)',
+          subtitle: `APK kökte + Android/obb/${game.packageId}/${obbName} + uyumluluk raporu`,
+          badge: '.ZIP',
+          accent: 'emerald',
+          onClick: () => downloadZipBundleForGame(game, entry)
+        });
+        addOptionBtn({
+          title: `APK Dosyasını Doğrudan İndir`,
+          subtitle: `${entry.apkFile.name} — Android paket yükleyiciyle hemen kurun`,
+          badge: '.APK',
+          accent: 'sky',
+          onClick: () => {
+            triggerBlobDownload(entry.apkFile, entry.apkFile.name);
+            showToast(`${entry.apkFile.name} cihazınıza indiriliyor.`, 'success');
+          }
+        });
+        addOptionBtn({
+          title: 'OBB Dosyasını Doğru Adla İndir',
+          subtitle: `${obbName} — /Android/obb/${game.packageId}/ içine taşıyın`,
+          badge: '.OBB',
+          accent: 'violet',
+          onClick: () => {
+            triggerBlobDownload(entry.obbFile, obbName);
+            showToast(`${obbName} cihazınıza indiriliyor.`, 'success');
+          }
+        });
+      } else if (entry && entry.singleFile) {
+        // DURUM 2: Tekil gerçek APK veya XAPK dosyası bellekte mevcut
+        const file = entry.singleFile;
+        const extLower = file.name.toLowerCase().endsWith('.xapk') ? '.XAPK' : '.APK';
+        banner.className = 'rounded-2xl p-3.5 text-xs border leading-relaxed bg-emerald-500/10 border-emerald-500/35 text-emerald-200';
+        banner.textContent = `Yüklediğiniz gerçek dosya (${file.name} • ${formatSizeFromMB(file.size / 1048576)}) cihazınıza doğrudan indirilmeye hazır. Orijinal imza korunmuştur.`;
+        reattachBox.classList.add('hidden');
+
+        addOptionBtn({
+          title: `Doğrudan Paketi Cihaza İndir (${extLower})`,
+          subtitle: `${file.name} — Ek bellek kullanmadan doğrudan İndirilenler klasörüne kaydedilir`,
+          badge: extLower,
+          accent: 'emerald',
+          onClick: () => {
+            triggerBlobDownload(file, file.name);
+            showToast(`${file.name} cihazınıza indiriliyor.`, 'success');
+          }
+        });
+        addOptionBtn({
+          title: 'Kurulum Paketi + Rapor İndir (.zip)',
+          subtitle: file.size > 1536 * 1024 * 1024
+            ? 'Büyük dosya (>1.5 GB): Mobil tarayıcı RAM sınırına takılabilir; doğrudan indirme önerilir.'
+            : `${file.name} + retrodroid_rapor.json + KURULUM_REHBERI.txt tek ZIP içinde`,
+          badge: '.ZIP',
+          accent: 'sky',
+          onClick: () => downloadZipBundleForGame(game, entry)
+        });
+      } else {
+        // DURUM 3: Demo oyun veya sayfa yenilendikten sonra oturumda gerçek binary yok
+        banner.className = 'rounded-2xl p-3.5 text-xs border leading-relaxed bg-amber-500/10 border-amber-500/35 text-amber-200';
+        banner.textContent = 'Bu kayıt bir demo paket veya önceki oturumdan kalma profil. Tarayıcı güvenliği gereği gerçek APK/OBB dosyaları sayfayı yenileyince bellekte tutulmaz. Uyumluluk paketini indirebilir ya da aşağıdan yerel dosyanızı yeniden bağlayabilirsiniz.';
+        reattachBox.classList.remove('hidden');
+
+        addOptionBtn({
+          title: 'Uyumluluk & OBB Klasör Şablonu İndir (.zip)',
+          subtitle: `retrodroid_rapor.json + KURULUM_REHBERI.txt${game.hasObb ? ` + Android/obb/${game.packageId}/ yol rehberi` : ''}`,
+          badge: '.ZIP',
+          accent: 'sky',
+          onClick: () => downloadZipBundleForGame(game, null)
+        });
+      }
+
+      // Her durumda JSON Uyumluluk Raporu indirilebilir
+      addOptionBtn({
+        title: 'Uyumluluk Raporu ve Profilini İndir (.json)',
+        subtitle: `retrodroid_rapor_${safeBase}.json`,
+        badge: '.JSON',
+        accent: 'slate',
+        onClick: () => downloadCompatibilityReport(game)
+      });
+    }
+
+    async function downloadZipBundleForGame(game, entry) {
+      if (!window.JSZip) {
+        showToast('ZIP oluşturucu (JSZip) yüklenemedi. İnternet bağlantısını kontrol edin veya doğrudan indirmeyi kullanın.', 'error');
+        return;
+      }
+      const safeBase = (game.packageId || game.name || 'retrodroid_paket')
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '_');
+
+      setDownloadProgress(true, 'ZIP arşivi hazırlanıyor...', 8);
+      try {
+        const zip = new JSZip();
+        const reportObj = buildCompatibilityReportObj(game);
+        let obbName = '';
+
+        if (entry && entry.apkFile && entry.obbFile) {
+          obbName = entry.obbTargetName || entry.obbFile.name;
+          zip.file(entry.apkFile.name, entry.apkFile);
+          zip.file(`Android/obb/${game.packageId}/${obbName}`, entry.obbFile);
+        } else if (entry && entry.singleFile) {
+          zip.file(entry.singleFile.name, entry.singleFile);
+        } else if (game.hasObb && game.packageId) {
+          zip.file(
+            `Android/obb/${game.packageId}/OBB_DOSYASINI_BURAYA_KOYUN.txt`,
+            `Bu oyunun .obb dosyasını telefonunuzda /Android/obb/${game.packageId}/ klasörüne yerleştirin.\n`
+          );
+        }
+
+        zip.file('retrodroid_rapor.json', JSON.stringify(reportObj, null, 2));
+        zip.file('KURULUM_REHBERI.txt', buildInstallGuideText(game, obbName));
+
+        const blob = await zip.generateAsync(
+          { type: 'blob', compression: 'STORE' },
+          (meta) => {
+            setDownloadProgress(true, 'Paket cihaz için derleniyor...', meta.percent || 0);
+          }
+        );
+
+        const dlName = `${safeBase}_RetroDroid_Paket.zip`;
+        triggerBlobDownload(blob, dlName);
+        setDownloadProgress(true, 'İndirme başlatıldı!', 100);
+        setTimeout(() => setDownloadProgress(false), 1200);
+        showToast(`${dlName} cihazınıza indirildi.`, 'success');
+      } catch (err) {
+        console.error('ZIP paketleme hatası:', err);
+        setDownloadProgress(false);
+        showToast('ZIP oluşturulamadı (dosya mobil tarayıcı RAM sınırını aşmış olabilir). Doğrudan APK/XAPK indirmeyi deneyin.', 'error');
+      }
+    }
+
+    // Tüm Kütüphane ve Ayarların JSON Yedeğini Cihaza İndir
+    function exportAppBackup() {
+      const backup = {
+        app: 'RetroDroid Compat',
+        version: '4.2',
+        exportedAt: new Date().toISOString(),
+        state: {
+          ...appState,
+          games: appState.games.map((g, idx) => normalizeGame(g, idx)).filter(Boolean)
+        }
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const fileName = `retrodroid_yedek_${dateStr}.json`;
+      triggerBlobDownload(blob, fileName);
+      showToast(`Uygulama yedeği (${fileName}) cihazınıza indirildi.`, 'success');
+    }
+
+    async function importAppBackup(file) {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const importedState = parsed && parsed.state ? parsed.state : parsed;
+        if (!importedState || !Array.isArray(importedState.games)) {
+          showToast('Geçersiz yedek dosyası biçimi.', 'error');
+          return;
+        }
+        const defaults = createDefaultState();
+        appState = {
+          ...defaults,
+          ...importedState,
+          games: importedState.games.map(normalizeGame).filter(Boolean),
+          engineSettings: { ...defaults.engineSettings, ...(importedState.engineSettings || {}) }
+        };
+        saveState();
+        renderLibrary();
+        renderEngineTab();
+        renderSystemTab();
+        updateHeaderProfileBadge();
+        showToast(`Yedek başarıyla geri yüklendi (${appState.games.length} oyun).`, 'success');
+      } catch (err) {
+        console.error('Yedek geri yükleme hatası:', err);
+        showToast('Yedek dosyası okunamadı. Geçerli bir RetroDroid .json yedeği seçin.', 'error');
+      }
+    }
+
+    // =========================================================================
+    // 7. SEKME 3: MOTOR VE PROFİL AYARLARI
+    // =========================================================================
+    function renderEngineTab() {
+      const grid = document.getElementById('profiles-grid');
+      grid.innerHTML = '';
+
+      ENGINE_PROFILES.forEach(prof => {
+        const isActive = appState.activeProfile === prof.id;
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = `text-left rounded-3xl p-4 border transition flex flex-col justify-between gap-3 ${
+          isActive
+            ? 'bg-gradient-to-br from-emerald-500/15 to-sky-500/10 border-emerald-400/60 shadow-[0_0_25px_rgba(16,185,129,0.15)]'
+            : 'glass-card hover:border-slate-700'
+        }`;
+
+        card.innerHTML = `
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                isActive ? 'bg-emerald-500/25 text-emerald-300' : 'bg-slate-800 text-slate-400'
+              }">${prof.badge}</span>
+              ${isActive ? '<span class="text-[10px] font-extrabold text-emerald-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>AKTİF</span>' : ''}
+            </div>
+            <h3 class="text-sm font-extrabold text-white">${prof.name}</h3>
+            <p class="text-[11px] text-slate-400 leading-relaxed">${prof.desc}</p>
+          </div>
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span>${prof.defaultModules.length} Modül</span>
+            <span>RAM: ${prof.ram} MB</span>
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          appState.activeProfile = prof.id;
+          appState.engineSettings.abi = prof.abi;
+          appState.engineSettings.renderer = prof.renderer;
+          appState.engineSettings.ram = prof.ram;
+          saveState();
+          renderEngineTab();
+          updateHeaderProfileBadge();
+          showToast(`"${prof.name}" profili aktif edildi.`, 'success');
+        });
+
+        grid.appendChild(card);
+      });
+
+      // Form elemanlarını durumla senkronize et
+      document.getElementById('engine-abi').value = appState.engineSettings.abi;
+      document.getElementById('engine-renderer').value = appState.engineSettings.renderer;
+      document.getElementById('engine-ram').value = appState.engineSettings.ram;
+      document.getElementById('engine-ram-val').textContent = `${appState.engineSettings.ram} MB`;
+      document.getElementById('engine-scoped-obb').checked = appState.engineSettings.scopedObb;
+      document.getElementById('engine-audio-fix').checked = appState.engineSettings.audioFix;
+    }
+
+    function updateHeaderProfileBadge() {
+      const prof = ENGINE_PROFILES.find(p => p.id === appState.activeProfile) || ENGINE_PROFILES[0];
+      document.getElementById('header-profile-badge').textContent = prof.shortName;
+    }
+
+    // =========================================================================
+    // 8. SEKME 4: SİSTEM, SANAL DEPOLAMA GRAFİĞİ VE ANDROID SÜRÜM LİSTESİ
+    // =========================================================================
+    function renderSystemTab() {
+      // Depolama hesaplamaları
+      const xapkMB = appState.games.filter(g => g.ext === 'XAPK' || g.ext === 'APK+OBB').reduce((s, g) => s + g.sizeMB, 0);
+      const apkMB = appState.games.filter(g => g.ext === 'APK').reduce((s, g) => s + g.sizeMB, 0);
+      const cacheMB = appState.cacheMB || 0;
+      const totalUsedMB = xapkMB + apkMB + cacheMB;
+      const freeMB = Math.max(0, SANDBOX_QUOTA_MB - totalUsedMB);
+      const usedPct = Math.min(100, (totalUsedMB / SANDBOX_QUOTA_MB) * 100);
+
+      // En büyük paket vs 5 GB limit
+      const largestMB = appState.games.reduce((max, g) => Math.max(max, g.sizeMB), 0);
+      const largestPct = Math.min(100, (largestMB / 5120) * 100);
+      document.getElementById('sys-largest-pkg').textContent = `${formatSizeFromMB(largestMB)} / 5.00 GB`;
+      document.getElementById('sys-largest-bar').style.width = `${largestPct.toFixed(1)}%`;
+
+      // Depolama etiketleri
+      document.getElementById('sandbox-used-pct').textContent = `%${usedPct.toFixed(1)}`;
+      document.getElementById('donut-total-gb').textContent = formatSizeFromMB(totalUsedMB);
+      document.getElementById('storage-xapk-val').textContent = formatSizeFromMB(xapkMB);
+      document.getElementById('storage-apk-val').textContent = formatSizeFromMB(apkMB);
+      document.getElementById('storage-cache-val').textContent = formatSizeFromMB(cacheMB);
+      document.getElementById('storage-free-val').textContent = formatSizeFromMB(freeMB);
+
+      // SVG Donut dilimleri (çevre = 2 * pi * 48 ≈ 301.59)
+      const C = 301.59;
+      const xapkLen = (xapkMB / SANDBOX_QUOTA_MB) * C;
+      const apkLen = (apkMB / SANDBOX_QUOTA_MB) * C;
+      const cacheLen = (cacheMB / SANDBOX_QUOTA_MB) * C;
+
+      const dXapk = document.getElementById('donut-xapk');
+      const dApk = document.getElementById('donut-apk');
+      const dCache = document.getElementById('donut-cache');
+
+      dXapk.style.strokeDasharray = `${xapkLen} ${C}`;
+      dXapk.style.strokeDashoffset = '0';
+
+      dApk.style.strokeDasharray = `${Math.max(apkLen, apkMB > 0 ? 4 : 0)} ${C}`;
+      dApk.style.strokeDashoffset = `${-xapkLen}`;
+
+      dCache.style.strokeDasharray = `${Math.max(cacheLen, cacheMB > 0 ? 5 : 0)} ${C}`;
+      dCache.style.strokeDashoffset = `${-(xapkLen + Math.max(apkLen, apkMB > 0 ? 4 : 0))}`;
+
+      // Uzunluğu 0 olan dilimleri gizle (yuvarlak uçlar yüzünden nokta çiziyor)
+      dXapk.style.display = xapkMB > 0 ? '' : 'none';
+      dApk.style.display = apkMB > 0 ? '' : 'none';
+      dCache.style.display = cacheMB > 0 ? '' : 'none';
+
+      // Desteklenen Eski Android Sürümleri Grid
+      const verGrid = document.getElementById('android-versions-grid');
+      verGrid.innerHTML = '';
+      LEGACY_ANDROID_VERSIONS.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'p-3 rounded-2xl bg-slate-900/75 border border-slate-800/90 flex items-center justify-between gap-2';
+        el.innerHTML = `
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-extrabold text-white">${item.ver}</span>
+              <span class="text-[10px] font-mono text-sky-400">${item.api}</span>
+            </div>
+            <p class="text-[11px] text-slate-400 truncate">${item.codename} • ${item.note}</p>
+          </div>
+          <span class="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 text-[10px] font-bold shrink-0">
+            ${item.status}
+          </span>
+        `;
+        verGrid.appendChild(el);
+      });
+    }
+
+    // =========================================================================
+    // 9. SANAL UYUMLULUK KONTEYNERİ (OYUN BAŞLATMA VE CANVAS SİMÜLASYONU)
+    // =========================================================================
+    function clearSandboxTimeouts() {
+      sandboxTimeouts.forEach(id => clearTimeout(id));
+      sandboxTimeouts = [];
+    }
+
+    function launchGame(gameId) {
+      const game = appState.games.find(g => g.id === gameId);
+      if (!game) return;
+      clearSandboxTimeouts();
+      if (sandboxAnimFrame) { cancelAnimationFrame(sandboxAnimFrame); sandboxAnimFrame = null; }
+      if (sandboxTelemetryInterval) { clearInterval(sandboxTelemetryInterval); sandboxTelemetryInterval = null; }
+      pressedKeys.clear();
+      document.querySelectorAll('.vpad-btn.pressed').forEach(b => b.classList.remove('pressed'));
+      sandboxActiveGame = game;
+
+      const overlay = document.getElementById('sandbox-overlay');
+      const bootLayer = document.getElementById('sandbox-boot-layer');
+      const bootSteps = document.getElementById('boot-steps');
+
+      document.getElementById('sandbox-game-name').textContent = game.name;
+      document.getElementById('sandbox-game-meta').textContent =
+        `${game.legacyAndroid} (${game.ext}) • ${appState.engineSettings.abi} • ${appState.engineSettings.renderer}`;
+      document.getElementById('boot-title').textContent = `${game.name} Başlatılıyor...`;
+      document.getElementById('hud-scale').textContent = `%${game.settings.resolutionScale}`;
+
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+      bootLayer.classList.remove('hidden');
+      bootSteps.innerHTML = '';
+
+      resizeSandboxCanvas();
+
+      // Açılış sekansı simülasyonu
+      const sequence = [
+        `> Sanal konteyner oluşturuluyor (RAM: ${appState.engineSettings.ram} MB)...`,
+        `> ABI Çeviri Köprüsü: ARMv7a → ARM64-v8a JIT bağlandı.`,
+        game.hasObb
+          ? `> OBB Veri Paketi bağlandı: /Android/obb/${game.packageId}/main.obb`
+          : `> APK Dahili varlıkları önbelleğe yüklendi.`,
+        `> Grafik Arka Ucu: OpenGL ES 2.0 → ${appState.engineSettings.renderer}`,
+        `> Ekran profili: ${game.settings.fps} FPS • Ölçek %${game.settings.resolutionScale} • HAZIR!`
+      ];
+
+      sequence.forEach((line, idx) => {
+        sandboxTimeouts.push(setTimeout(() => {
+          if (!sandboxActiveGame) return;
+          const p = document.createElement('div');
+          p.className = idx === sequence.length - 1 ? 'text-emerald-400 font-bold' : 'text-slate-300';
+          p.textContent = line;
+          bootSteps.appendChild(p);
+        }, idx * 340));
+      });
+
+      sandboxTimeouts.push(setTimeout(() => {
+        if (!sandboxActiveGame) return;
+        bootLayer.classList.add('hidden');
+        startSandboxLoop();
+      }, sequence.length * 340 + 450));
+    }
+
+    function exitSandbox() {
+      clearSandboxTimeouts();
+      document.querySelectorAll('.vpad-btn.pressed').forEach(b => b.classList.remove('pressed'));
+      sandboxActiveGame = null;
+      if (sandboxAnimFrame) cancelAnimationFrame(sandboxAnimFrame);
+      if (sandboxTelemetryInterval) clearInterval(sandboxTelemetryInterval);
+      sandboxAnimFrame = null;
+      sandboxTelemetryInterval = null;
+      pressedKeys.clear();
+
+      const overlay = document.getElementById('sandbox-overlay');
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      showToast('Sanal uyumluluk konteyneri güvenle kapatıldı.', 'info');
+    }
+
+    function resizeSandboxCanvas() {
+      const canvas = document.getElementById('sandbox-canvas');
+      const viewport = document.getElementById('sandbox-viewport');
+      if (!canvas || !viewport) return;
+      canvas.width = viewport.clientWidth || window.innerWidth;
+      canvas.height = viewport.clientHeight || window.innerHeight;
+    }
+
+    // Etkileşimli Retro Oyun Görseli ve Canlı Telemetri Döngüsü
+    function startSandboxLoop() {
+      const canvas = document.getElementById('sandbox-canvas');
+      const ctx = canvas.getContext('2d');
+      let t = 0;
+
+      // Oyuncu nesnesi (D-pad / Yön tuşları ile hareket eder)
+      const player = {
+        x: canvas.width * 0.5,
+        y: canvas.height * 0.5,
+        vx: 0,
+        vy: 0,
+        pulse: 0
+      };
+
+      const stars = Array.from({ length: 70 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        speed: 0.6 + Math.random() * 2.2,
+        size: 1 + Math.random() * 2
+      }));
+
+      // Canlı FPS ve RAM telemetrisi
+      const baseFps = sandboxActiveGame.settings.fps || 60;
+      const baseRam = sandboxActiveGame.ext === 'XAPK' ? 1420 : 310;
+      if (sandboxTelemetryInterval) clearInterval(sandboxTelemetryInterval);
+
+      sandboxTelemetryInterval = setInterval(() => {
+        if (!sandboxActiveGame) return;
+        const jitter = Math.floor(Math.random() * 3) - 1;
+        const liveFps = Math.max(24, Math.min(baseFps, baseFps + jitter));
+        const liveRam = baseRam + Math.floor(Math.random() * 48);
+        document.getElementById('hud-fps').textContent = liveFps;
+        document.getElementById('hud-ram').textContent = `${liveRam} MB`;
+      }, 650);
+
+      function frame() {
+        if (!sandboxActiveGame) return;
+        t += 0.025;
+
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Hareket girdilerini uygula
+        const speed = 4.2;
+        if (pressedKeys.has('UP')) player.y -= speed;
+        if (pressedKeys.has('DOWN')) player.y += speed;
+        if (pressedKeys.has('LEFT')) player.x -= speed;
+        if (pressedKeys.has('RIGHT')) player.x += speed;
+        if (pressedKeys.has('A') || pressedKeys.has('X')) player.pulse = 1;
+
+        player.x = Math.max(30, Math.min(w - 30, player.x));
+        player.y = Math.max(30, Math.min(h - 30, player.y));
+        player.pulse *= 0.9;
+
+        // Arka plan gradyanı (oyun türüne göre renk atmosferi)
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        if (sandboxActiveGame.genre === 'city') {
+          grad.addColorStop(0, '#130724');
+          grad.addColorStop(0.55, '#2b0f3f');
+          grad.addColorStop(1, '#090d1a');
+        } else if (sandboxActiveGame.genre === 'arcade') {
+          grad.addColorStop(0, '#091b2a');
+          grad.addColorStop(0.65, '#0f2f3f');
+          grad.addColorStop(1, '#0b1812');
+        } else {
+          grad.addColorStop(0, '#070c17');
+          grad.addColorStop(0.6, '#0d1a2c');
+          grad.addColorStop(1, '#061116');
+        }
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        // Hareketli yıldız/parçacık akışı
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
+        stars.forEach(s => {
+          s.x -= s.speed;
+          if (s.x < 0) {
+            s.x = w;
+            s.y = Math.random() * h;
+          }
+          ctx.fillRect(s.x, s.y, s.size, s.size);
+        });
+
+        // Perspektif Retro Izgara (Synthwave / 3D Emülasyon Zemin)
+        const horizon = h * 0.56;
+        ctx.strokeStyle = sandboxActiveGame.genre === 'city'
+          ? 'rgba(232, 121, 249, 0.25)'
+          : 'rgba(16, 185, 129, 0.24)';
+        ctx.lineWidth = 1;
+
+        for (let i = 0; i < 12; i++) {
+          const offset = ((t * 40 + i * 28) % 336) / 336;
+          const y = horizon + Math.pow(offset, 1.8) * (h - horizon);
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(w, y);
+          ctx.stroke();
+        }
+
+        const cx = w / 2;
+        for (let i = -8; i <= 8; i++) {
+          ctx.beginPath();
+          ctx.moveTo(cx + i * 24, horizon);
+          ctx.lineTo(cx + i * 160, h);
+          ctx.stroke();
+        }
+
+        // Merkez nişangah / kontrol edilebilir oyuncu imleci
+        const radius = 20 + player.pulse * 16;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = player.pulse > 0.15 ? '#38bdf8' : '#10b981';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(player.x - 10, player.y);
+        ctx.lineTo(player.x + 10, player.y);
+        ctx.moveTo(player.x, player.y - 10);
+        ctx.lineTo(player.x, player.y + 10);
+        ctx.stroke();
+
+        // Ortada hafif çalışma bilgisi
+        ctx.fillStyle = 'rgba(241, 245, 249, 0.88)';
+        ctx.font = '700 15px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(sandboxActiveGame.name.toUpperCase(), w / 2, horizon - 38);
+
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+        ctx.font = '500 11px "JetBrains Mono", monospace';
+        ctx.fillText(
+          `SANAL KONTEYNER ÇALIŞIYOR • ${sandboxActiveGame.legacyAndroid} → ANDROID 16 UYUMLU`,
+          w / 2,
+          horizon - 16
+        );
+
+        sandboxAnimFrame = requestAnimationFrame(frame);
+      }
+
+      sandboxAnimFrame = requestAnimationFrame(frame);
+    }
+
+    function updateInputHud() {
+      const el = document.getElementById('hud-input-status');
+      if (!el) return;
+      if (pressedKeys.size === 0) {
+        el.textContent = 'GİRDİ: Hazır (Yön Tuşları / Sanal Gamepad)';
+      } else {
+        el.textContent = 'GİRDİ AKTİF: ' + Array.from(pressedKeys).join(' + ');
+      }
+    }
+
+    // =========================================================================
+    // 10. OLAY DİNLEYİCİLERİ VE BAŞLATMA
+    // =========================================================================
+    function initEvents() {
+      // Alt Gezinme Sekmeleri
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      });
+
+      // Kütüphane Arama & Filtreler
+      document.getElementById('library-search').addEventListener('input', (e) => {
+        currentSearch = e.target.value;
+        renderLibrary();
+      });
+
+      document.querySelectorAll('.filter-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          currentFilter = pill.dataset.filter;
+          document.querySelectorAll('.filter-pill').forEach(p => {
+            const active = p.dataset.filter === currentFilter;
+            p.className = active
+              ? 'filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 whitespace-nowrap transition'
+              : 'filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-700 whitespace-nowrap transition';
+          });
+          renderLibrary();
+        });
+      });
+
+      // Dosya Yükleme ve Sürükle-Bırak
+      const dropzone = document.getElementById('dropzone');
+      const fileInput = document.getElementById('file-input');
+
+      // Dropzone dışına bırakılan dosyayı tarayıcının açmasını engelle
+      ['dragover', 'drop'].forEach(evtName => {
+        window.addEventListener(evtName, (e) => e.preventDefault());
+      });
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      document.getElementById('btn-browse-file').addEventListener('click', (e) => {
+        e.stopPropagation();
+        fileInput.click();
+      });
+
+      document.getElementById('btn-pair-analyze').addEventListener('click', analyzeApkObbPair);
+      document.getElementById('btn-pair-export').addEventListener('click', exportApkObbBundle);
+      document.getElementById('pair-apk-input').addEventListener('change', () => {
+        pairedApkFile = document.getElementById('pair-apk-input').files[0] || null;
+        document.getElementById('btn-pair-export').disabled = true;
+        setPairStatus('APK değişti. Eşleştirmeyi yeniden doğrulayın.');
+      });
+      document.getElementById('pair-obb-input').addEventListener('change', () => {
+        pairedObbFile = document.getElementById('pair-obb-input').files[0] || null;
+        document.getElementById('btn-pair-export').disabled = true;
+        setPairStatus('OBB değişti. Eşleştirmeyi yeniden doğrulayın.');
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleRealFile(e.target.files[0]);
+          fileInput.value = '';
+        }
+      });
+
+      ['dragenter', 'dragover'].forEach(evtName => {
+        dropzone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('dropzone-active');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(evtName => {
+        dropzone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('dropzone-active');
+        });
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        if (dt && dt.files && dt.files[0]) {
+          handleRealFile(dt.files[0]);
+        }
+      });
+
+      // Uyumlu Hale Getir & Sonuç Eylemleri
+      document.getElementById('btn-start-patch').addEventListener('click', runCompatibilityPatcher);
+      document.getElementById('btn-download-selected-pkg').addEventListener('click', () => {
+        if (selectedPackage) openDownloadModal(selectedPackage);
+      });
+      document.getElementById('btn-download-patched-pkg').addEventListener('click', () => {
+        if (lastPatchedGame) openDownloadModal(lastPatchedGame);
+      });
+      document.getElementById('btn-download-report').addEventListener('click', () => {
+        downloadCompatibilityReport(lastPatchedGame);
+      });
+      document.getElementById('btn-launch-patched').addEventListener('click', () => {
+        if (lastPatchedGame) launchGame(lastPatchedGame.id);
+      });
+
+      // Oyun Ayarları Modalı Kontrolleri
+      document.querySelectorAll('.fps-opt').forEach(btn => {
+        btn.addEventListener('click', () => updateFpsButtonStyles(btn.dataset.fps));
+      });
+
+      document.getElementById('settings-res-range').addEventListener('input', (e) => {
+        document.getElementById('settings-res-label').textContent = '%' + e.target.value;
+      });
+
+      document.getElementById('btn-save-game-settings').addEventListener('click', () => {
+        const game = appState.games.find(g => g.id === editingGameId);
+        if (!game) return;
+        const activeFpsBtn = document.querySelector('.fps-opt[data-selected="true"]');
+        game.settings.fps = activeFpsBtn ? Number(activeFpsBtn.dataset.fps) : 60;
+        game.settings.resolutionScale = Number(document.getElementById('settings-res-range').value);
+        game.settings.controlMode = document.getElementById('settings-control-mode').value;
+        saveState();
+        renderLibrary();
+        closeGameSettings();
+        showToast(`${game.name} ayarları kaydedildi.`, 'success');
+      });
+
+      document.getElementById('btn-download-game-modal').addEventListener('click', () => {
+        const game = appState.games.find(g => g.id === editingGameId);
+        if (!game) return;
+        closeGameSettings();
+        openDownloadModal(game);
+      });
+
+      document.getElementById('btn-export-game-report').addEventListener('click', () => {
+        const game = appState.games.find(g => g.id === editingGameId);
+        downloadCompatibilityReport(game);
+      });
+
+      document.getElementById('btn-delete-game-modal').addEventListener('click', () => {
+        const game = appState.games.find(g => g.id === editingGameId);
+        if (!game) return;
+        openConfirmModal(
+          'Oyunu Kütüphaneden Sil',
+          `"${game.name}" paketini ve sanal OBB verilerini silmek istediğinize emin misiniz?`,
+          () => {
+            sessionFileStore.delete(game.id);
+            appState.games = appState.games.filter(g => g.id !== game.id);
+            saveState();
+            renderLibrary();
+            renderSystemTab();
+            closeGameSettings();
+            showToast(`${game.name} kütüphaneden kaldırıldı.`, 'warn');
+          }
+        );
+      });
+
+      // İndirme Modalı: Yerel dosya yeniden bağlama
+      const dlReattachInput = document.getElementById('dl-reattach-input');
+      document.getElementById('btn-dl-reattach').addEventListener('click', () => dlReattachInput.click());
+      dlReattachInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        dlReattachInput.value = '';
+        if (!file || !downloadingTarget) return;
+        if (file.size > MAX_FILE_BYTES) {
+          showToast('Seçilen dosya 5.00 GB sınırını aşıyor.', 'error');
+          return;
+        }
+        sessionFileStore.set(downloadingTarget.id, { singleFile: file });
+        renderLibrary();
+        renderDownloadModalBody();
+        showToast(`${file.name} bağlandı! Artık doğrudan veya ZIP olarak indirebilirsiniz.`, 'success');
+      });
+
+      // Modallar: dışarı tıklayınca ve Esc ile kapanır
+      document.getElementById('modal-game-settings').addEventListener('click', (e) => {
+        if (e.target.id === 'modal-game-settings') closeGameSettings();
+      });
+      document.getElementById('modal-download-package').addEventListener('click', (e) => {
+        if (e.target.id === 'modal-download-package') closeDownloadModal();
+      });
+      document.getElementById('modal-confirm').addEventListener('click', (e) => {
+        if (e.target.id === 'modal-confirm') closeConfirmModal();
+      });
+      window.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (!document.getElementById('modal-confirm').classList.contains('hidden')) closeConfirmModal();
+        else if (!document.getElementById('modal-download-package').classList.contains('hidden')) closeDownloadModal();
+        else if (!document.getElementById('modal-game-settings').classList.contains('hidden')) closeGameSettings();
+      });
+
+      // Onay Modalı Butonları
+      document.getElementById('btn-confirm-cancel').addEventListener('click', closeConfirmModal);
+      document.getElementById('btn-confirm-ok').addEventListener('click', () => {
+        if (typeof confirmCallback === 'function') confirmCallback();
+        closeConfirmModal();
+      });
+
+      // Motor Ayarları Dinleyicileri
+      document.getElementById('engine-abi').addEventListener('change', (e) => {
+        appState.engineSettings.abi = e.target.value;
+        saveState();
+        showToast('32→64 bit çeviri köprüsü güncellendi.', 'info');
+      });
+
+      document.getElementById('engine-renderer').addEventListener('change', (e) => {
+        appState.engineSettings.renderer = e.target.value;
+        saveState();
+        showToast('Grafik arka ucu güncellendi.', 'info');
+      });
+
+      document.getElementById('engine-ram').addEventListener('input', (e) => {
+        const val = Number(e.target.value);
+        document.getElementById('engine-ram-val').textContent = `${val} MB`;
+        appState.engineSettings.ram = val;
+        saveState();
+      });
+
+      document.getElementById('engine-scoped-obb').addEventListener('change', (e) => {
+        appState.engineSettings.scopedObb = e.target.checked;
+        saveState();
+      });
+
+      document.getElementById('engine-audio-fix').addEventListener('change', (e) => {
+        appState.engineSettings.audioFix = e.target.checked;
+        saveState();
+      });
+
+      // Sistem Sekmesi Eylemleri
+      document.getElementById('btn-clear-cache').addEventListener('click', () => {
+        appState.cacheMB = 48;
+        saveState();
+        renderSystemTab();
+        showToast('Shader ve 32-bit JIT önbelleği temizlendi.', 'success');
+      });
+
+      document.getElementById('btn-copy-sysinfo').addEventListener('click', async () => {
+        const summary = [
+          'RetroDroid Compat — Sistem Tanı Raporu',
+          `Aktif Profil: ${appState.activeProfile}`,
+          `Çeviri Köprüsü: ${appState.engineSettings.abi}`,
+          `Grafik Motoru: ${appState.engineSettings.renderer}`,
+          `Sanal RAM: ${appState.engineSettings.ram} MB`,
+          `Maksimum Paket Limiti: 5.00 GB (5120 MB)`,
+          `Yüklü Uyumlu Oyun Sayısı: ${appState.games.length}`
+        ].join('\n');
+
+        const ok = await copyText(summary);
+        showToast(
+          ok ? 'Sistem tanı raporu panoya kopyalandı.' : 'Panoya kopyalanamadı, tarayıcı izin vermedi.',
+          ok ? 'success' : 'error'
+        );
+      });
+
+      // Render Sunucu Bağlantı Butonu
+      document.getElementById('btn-save-test-server').addEventListener('click', async () => {
+        const raw = (document.getElementById('server-url-input').value || '').trim().replace(/\/+$/, '');
+        appState.serverUrl = raw;
+        saveState();
+        await checkRenderServer(false);
+      });
+
+      document.getElementById('btn-export-backup').addEventListener('click', exportAppBackup);
+      const backupInput = document.getElementById('backup-file-input');
+      document.getElementById('btn-import-backup').addEventListener('click', () => backupInput.click());
+      backupInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          importAppBackup(e.target.files[0]);
+          backupInput.value = '';
+        }
+      });
+
+      document.getElementById('btn-reset-app').addEventListener('click', () => {
+        openConfirmModal(
+          'Varsayılan Verileri Sıfırla',
+          'Eklediğiniz tüm oyunlar ve özel motor ayarları sıfırlanarak başlangıç durumuna dönülecek.',
+          () => {
+            sessionFileStore.clear();
+            appState = createDefaultState();
+            saveState();
+            renderLibrary();
+            renderEngineTab();
+            renderSystemTab();
+            updateHeaderProfileBadge();
+            showToast('Uygulama varsayılan ayarlara sıfırlandı.', 'info');
+          }
+        );
+      });
+
+      // Sanal Konteyner Kontrolleri
+      document.getElementById('btn-exit-sandbox').addEventListener('click', exitSandbox);
+
+      document.getElementById('btn-toggle-hud').addEventListener('click', (e) => {
+        sandboxHudVisible = !sandboxHudVisible;
+        document.getElementById('sandbox-hud').classList.toggle('hidden', !sandboxHudVisible);
+        e.target.textContent = sandboxHudVisible ? 'HUD: Açık' : 'HUD: Kapalı';
+      });
+
+      document.getElementById('btn-toggle-vpad').addEventListener('click', (e) => {
+        sandboxVpadVisible = !sandboxVpadVisible;
+        document.getElementById('sandbox-vpad').classList.toggle('hidden', !sandboxVpadVisible);
+        e.target.textContent = sandboxVpadVisible ? 'Kontrol: Açık' : 'Kontrol: Kapalı';
+      });
+
+      // Sanal Gamepad Dokunmatik + Fare Dinleyicileri
+      document.querySelectorAll('.vpad-btn').forEach(btn => {
+        const key = btn.dataset.vkey;
+        const press = (e) => {
+          e.preventDefault();
+          pressedKeys.add(key);
+          btn.classList.add('pressed');
+          updateInputHud();
+        };
+        const release = (e) => {
+          e.preventDefault();
+          pressedKeys.delete(key);
+          btn.classList.remove('pressed');
+          updateInputHud();
+        };
+
+        btn.addEventListener('mousedown', press);
+        btn.addEventListener('mouseup', release);
+        btn.addEventListener('mouseleave', release);
+        btn.addEventListener('touchstart', press, { passive: false });
+        btn.addEventListener('touchend', release, { passive: false });
+        btn.addEventListener('touchcancel', release, { passive: false });
+      });
+
+      // Klavye Yön Tuşları & WASD Desteği (Konteyner açıkken)
+      const keyMap = {
+        ArrowUp: 'UP', w: 'UP', W: 'UP',
+        ArrowDown: 'DOWN', s: 'DOWN', S: 'DOWN',
+        ArrowLeft: 'LEFT', a: 'LEFT', A: 'LEFT',
+        ArrowRight: 'RIGHT', d: 'RIGHT', D: 'RIGHT',
+        ' ': 'A', Enter: 'X'
+      };
+
+      window.addEventListener('keydown', (e) => {
+        if (!sandboxActiveGame) return;
+        const mapped = keyMap[e.key];
+        if (mapped) {
+          e.preventDefault();
+          pressedKeys.add(mapped);
+          const btn = document.querySelector(`.vpad-btn[data-vkey="${mapped}"]`);
+          if (btn) btn.classList.add('pressed');
+          updateInputHud();
+        } else if (e.key === 'Escape') {
+          exitSandbox();
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (!sandboxActiveGame) return;
+        const mapped = keyMap[e.key];
+        if (mapped) {
+          pressedKeys.delete(mapped);
+          const btn = document.querySelector(`.vpad-btn[data-vkey="${mapped}"]`);
+          if (btn) btn.classList.remove('pressed');
+          updateInputHud();
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        if (sandboxActiveGame) resizeSandboxCanvas();
+      });
+    }
+
+    // Canlı saat güncellemesi (Masaüstü durum çubuğu)
+    function updateStatusClock() {
+      const el = document.getElementById('status-clock');
+      if (!el) return;
+      const now = new Date();
+      el.textContent = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Uygulama Başlatıcı
+    window.addEventListener('DOMContentLoaded', () => {
+      initEvents();
+      renderDemoPackages();
+      renderLibrary();
+      renderEngineTab();
+      renderSystemTab();
+      updateHeaderProfileBadge();
+      switchTab(appState.activeTab || 'library');
+      updateStatusClock();
+      setInterval(updateStatusClock, 30000);
+      checkRenderServer(true);
+    });
+  </script>
+</body>
+</html>
