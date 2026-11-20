@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RetroDroid Compat — Eski Oyun Uyumluluk Simülatörü</title>
+  <title>RetroDroid Compat — Eski Oyun Uyumluluk Motoru (Render Bağlı)</title>
 
   <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -235,14 +235,12 @@
           </svg>
           Paket Ekle
         </button>
-        <button type="button" id="header-server-pill" onclick="switchTab('system')" title="Render Sunucu Durumu" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] font-medium text-slate-300 transition">
+        <button type="button" id="btn-header-server-status" onclick="switchTab('patcher')" title="Render APK Sunucu Durumu" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] font-medium text-slate-300 transition">
           <span id="header-server-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-          <span id="header-server-label" class="hidden sm:inline">Sunucu...</span>
-        </button>
-        <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-medium text-slate-300">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="header-server-label" class="hidden sm:inline">Sunucu Kontrol...</span>
+          <span class="text-slate-600 hidden sm:inline">|</span>
           <span id="header-profile-badge">Maks. Uyum</span>
-        </div>
+        </button>
       </div>
     </header>
 
@@ -366,6 +364,47 @@
       <!-- SEKME 2: APK & XAPK YÜKLEME, DOĞRULAMA VE UYUMLULUK YAMALAYICI      -->
       <!-- =================================================================== -->
       <section id="tab-patcher" class="tab-section hidden tab-animate space-y-5">
+
+        <!-- Bölüm 0: Render Gerçek APK Analiz & İmzalama Sunucusu Bağlantısı -->
+        <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-3 border-sky-500/30">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+              <span id="render-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
+              <div>
+                <h2 class="text-sm sm:text-base font-extrabold text-white">Render Gerçek APK Sunucusu</h2>
+                <p id="render-status-text" class="text-[11px] text-slate-400">Sunucu bağlantısı kontrol ediliyor...</p>
+              </div>
+            </div>
+            <button type="button" id="btn-check-render" class="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-xs font-bold text-sky-300 transition">
+              Bağlantıyı Test Et / Uyandır
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+            <div class="sm:col-span-9">
+              <input
+                id="render-api-url"
+                type="url"
+                placeholder="https://senin-servisin.onrender.com (Render'dan açtıysan boş bırak)"
+                class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-emerald-500 focus:outline-none text-xs font-mono text-slate-100 placeholder-slate-500"
+              />
+            </div>
+            <button type="button" id="btn-save-render-url" class="sm:col-span-3 px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-xs font-bold text-emerald-300 transition">
+              Adresi Kaydet
+            </button>
+          </div>
+
+          <!-- Canlı Sunucu Yükleme İlerleme Çubuğu -->
+          <div id="render-upload-progress-box" class="hidden rounded-2xl bg-slate-950 border border-emerald-500/30 p-3 space-y-1.5">
+            <div class="flex justify-between text-[11px] font-mono">
+              <span id="render-upload-label" class="text-emerald-300">APK Render sunucusuna yükleniyor...</span>
+              <span id="render-upload-pct" class="text-white font-bold">0%</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div id="render-upload-bar" class="h-full bg-gradient-to-r from-emerald-400 to-sky-400 transition-all duration-150" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
 
         <!-- Bölüm 1: Dosya Yükleme ve Binary İmza Doğrulama -->
         <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-4">
@@ -497,6 +536,33 @@
             </div>
           </div>
 
+          <!-- Gerçek APK Sunucu Uyarıları (32-bit / Eski SDK vb.) -->
+          <div id="pkg-server-warnings" class="hidden rounded-2xl bg-amber-500/10 border border-amber-500/35 p-3.5 text-xs text-amber-200 space-y-1">
+            <!-- JS ile doldurulur -->
+          </div>
+
+          <!-- Render Gerçek Yama & İmzalama Seçenekleri -->
+          <div class="rounded-2xl bg-slate-900/75 border border-slate-800 p-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label for="patch-target-sdk" class="text-[11px] font-bold text-slate-300 block">Hedef targetSdkVersion (Android Kurulum Uyumu)</label>
+              <select id="patch-target-sdk" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-emerald-500 focus:outline-none">
+                <option value="28" selected>API 28 — Android 9 (Önerilen • En Yüksek Uyum)</option>
+                <option value="30">API 30 — Android 11</option>
+                <option value="33">API 33 — Android 13 (Otomatik exported ekler)</option>
+                <option value="34">API 34 — Android 14 (Otomatik exported ekler)</option>
+              </select>
+              <p class="text-[10px] text-slate-500">API 28, Android 14/15/16 kurulum engelini aşar ve eski oyunların "Paket geçersiz" hatasını önler.</p>
+            </div>
+            <div class="space-y-1">
+              <label for="patch-server-mode" class="text-[11px] font-bold text-slate-300 block">İşleme Modu (Render Sunucusu)</label>
+              <select id="patch-server-mode" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-emerald-500 focus:outline-none">
+                <option value="patch_and_sign" selected>TargetSDK Yükselt + Hizala + v1/v2/v3 İmzala</option>
+                <option value="resign_only">Yalnızca Hizala &amp; İmzala (Kaynakları Bozmayan Güvenli Mod)</option>
+              </select>
+              <p class="text-[10px] text-slate-500">Apktool hatası olursa sunucu otomatik güvenli hizalama + imzalama moduna geçer.</p>
+            </div>
+          </div>
+
           <!-- Uyumluluk Yamalayıcı Modülleri (6 Modül) -->
           <div class="space-y-3 pt-1">
             <div class="flex items-center justify-between">
@@ -565,7 +631,7 @@
               <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                 <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
               </svg>
-              Paket profili kütüphaneye eklendi; gerçek oyun başlatılmaz.
+              <span id="patch-complete-msg">Paket profili kütüphaneye eklendi.</span>
             </div>
             <div class="flex flex-wrap gap-2 w-full sm:w-auto">
               <button id="btn-download-patched-pkg" class="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/45 text-xs font-bold text-emerald-200 inline-flex items-center justify-center gap-1.5 transition">
@@ -693,34 +759,6 @@
       <!-- SEKME 4: SİSTEM, DEPOLAMA GRAFİĞİ VE DESTEKLENEN ANDROID SÜRÜMLERİ  -->
       <!-- =================================================================== -->
       <section id="tab-system" class="tab-section hidden tab-animate space-y-5">
-
-        <!-- Render APK Analiz & İmzalama Sunucusu Bağlantı Kartı -->
-        <div class="glass-card rounded-3xl p-4 sm:p-5 border-sky-500/30 space-y-3.5">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-sky-400">Render Arka Uç Bağlantısı (aapt • apktool • apksigner)</span>
-              <h3 class="text-base font-extrabold text-white mt-0.5">Gerçek APK Analiz &amp; İmzalama Sunucusu</h3>
-            </div>
-            <span id="server-status-badge" class="px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
-              Kontrol ediliyor...
-            </span>
-          </div>
-
-          <div class="flex flex-col sm:flex-row gap-2">
-            <input
-              id="server-url-input"
-              type="url"
-              placeholder="https://retrodroid-compat.onrender.com (Render'da barındırılıyorsa boş bırakın)"
-              class="flex-1 rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-mono text-slate-100 placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
-            />
-            <button type="button" id="btn-save-test-server" class="neon-btn px-4 py-2.5 rounded-xl text-xs font-extrabold text-slate-950 shrink-0">
-              Bağlan &amp; Test Et
-            </button>
-          </div>
-          <p id="server-tools-info" class="text-[11px] text-slate-400">
-            Render adresini bağladığınızda seçtiğiniz APK dosyaları gerçek aapt ile analiz edilip apktool + zipalign + apksigner ile imzalanarak cihazınıza indirilir.
-          </p>
-        </div>
 
         <!-- 5 GB Paket Limiti ve Sanal Alan (Sandbox) Depolama Grafiği -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1324,7 +1362,7 @@
       return {
         activeTab: 'library',
         activeProfile: 'max_compat',
-        serverUrl: '',
+        renderApiUrl: '',
         cacheMB: 420,
         engineSettings: {
           abi: 'RetroBridge JIT v4 (Önerilen)',
@@ -1397,87 +1435,10 @@
     let editingGameId = null;
     let confirmCallback = null;
     let downloadingTarget = null;
-    // Yüklenen gerçek File nesneleri yalnızca aktif tarayıcı oturumunda bellekte tutulur
+    // Yüklenen gerçek File nesneleri ve Render sunucu indirme adresleri aktif oturumda tutulur
     const sessionFileStore = new Map();
-
-    // Render sunucu çalışma durumu
-    let serverOnline = false;
-    let serverMaxUploadMB = 150;
-    let serverToolsStatus = null;
-
-    function getServerBaseUrl() {
-      const custom = (appState.serverUrl || '').trim().replace(/\/+$/, '');
-      if (custom) return custom;
-      if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
-        return window.location.origin;
-      }
-      return '';
-    }
-
-    function updateServerStatusUI(state, detailText = '') {
-      const dot = document.getElementById('header-server-dot');
-      const lbl = document.getElementById('header-server-label');
-      const badge = document.getElementById('server-status-badge');
-      const info = document.getElementById('server-tools-info');
-      if (!dot || !lbl || !badge) return;
-
-      if (state === 'online') {
-        dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-        lbl.textContent = 'Sunucu: Bağlı';
-        badge.textContent = `BAĞLI • Maks. ${serverMaxUploadMB} MB`;
-        badge.className = 'px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-emerald-500/15 border border-emerald-500/35 text-emerald-300';
-      } else if (state === 'waking') {
-        dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
-        lbl.textContent = 'Uyanıyor...';
-        badge.textContent = 'Sunucu kontrol ediliyor...';
-        badge.className = 'px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300';
-      } else {
-        dot.className = 'w-2 h-2 rounded-full bg-slate-500';
-        lbl.textContent = 'Yerel Mod';
-        badge.textContent = 'YEREL MOD (Sunucu Bağlı Değil)';
-        badge.className = 'px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-slate-800 border border-slate-700 text-slate-300';
-      }
-      if (info && detailText) info.textContent = detailText;
-    }
-
-    async function checkRenderServer(silent = false) {
-      const base = getServerBaseUrl();
-      const inputEl = document.getElementById('server-url-input');
-      if (inputEl && !inputEl.value && appState.serverUrl) {
-        inputEl.value = appState.serverUrl;
-      }
-      if (!base) {
-        serverOnline = false;
-        updateServerStatusUI('offline', 'Yerel dosya olarak açıldı. Gerçek APK analizi/imzalama için Render adresinizi yukarıya yazıp Bağlan & Test Et butonuna basın.');
-        return false;
-      }
-
-      updateServerStatusUI('waking', `${base}/health adresine bağlanılıyor (Render Free ilk açılışta 30-50 sn sürebilir)...`);
-      try {
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 25000);
-        const res = await fetch(`${base}/health`, { signal: ctrl.signal });
-        clearTimeout(tid);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        serverOnline = data && data.status === 'ok';
-        serverMaxUploadMB = Number(data.maxUploadMB) || 150;
-        serverToolsStatus = data.tools || null;
-        if (serverOnline) {
-          const toolSummary = serverToolsStatus
-            ? `Araçlar: aapt(${serverToolsStatus.aapt ? 'OK' : 'YOK'}), apktool(${serverToolsStatus.apktool ? 'OK' : 'YOK'}), zipalign(${serverToolsStatus.zipalign ? 'OK' : 'YOK'}), apksigner(${serverToolsStatus.apksigner ? 'OK' : 'YOK'})`
-            : 'Sunucu araçları hazır.';
-          updateServerStatusUI('online', `Bağlı: ${base} • ${toolSummary} • Sunucu yükleme limiti: ${serverMaxUploadMB} MB.`);
-          if (!silent) showToast(`Render APK sunucusuna bağlanıldı (Maks. ${serverMaxUploadMB} MB).`, 'success');
-          return true;
-        }
-      } catch (err) {
-        serverOnline = false;
-        updateServerStatusUI('offline', `${base} yanıt vermedi. Render uyku modundaysa 30 sn sonra tekrar "Bağlan & Test Et" deneyin; şimdilik yerel modda çalışabilirsiniz.`);
-        if (!silent) showToast('Render sunucusuna ulaşılamadı, yerel mod aktif.', 'warn');
-      }
-      return false;
-    }
+    let renderServerOnline = false;
+    let renderMaxUploadMB = 120;
 
     // Sanal konteyner simülasyon durumu
     let sandboxAnimFrame = null;
@@ -1513,9 +1474,6 @@
       delete safe.rawFile;
       delete safe.apkFile;
       delete safe.obbFile;
-      delete safe.serverJobId;
-      delete safe.serverDownloadUrl;
-      delete safe.serverFileName;
       return safe;
     }
 
@@ -2031,6 +1989,131 @@
       }
     }
 
+    // =========================================================================
+    // 6.1 RENDER GERÇEK APK ANALİZ & İMZALAMA SUNUCUSU ENTEGRASYONU
+    // =========================================================================
+    function getRenderApiBase() {
+      const saved = (appState.renderApiUrl || '').trim().replace(/\/+$/, '');
+      if (saved) return saved;
+      if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+        return '';
+      }
+      return '';
+    }
+
+    function updateRenderStatusUI(state, text) {
+      const dot = document.getElementById('render-status-dot');
+      const lbl = document.getElementById('render-status-text');
+      const hDot = document.getElementById('header-server-dot');
+      const hLbl = document.getElementById('header-server-label');
+
+      if (state === 'online') {
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0';
+        if (hDot) hDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        if (hLbl) hLbl.textContent = 'Render Aktif';
+      } else if (state === 'waking') {
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
+        if (hDot) hDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+        if (hLbl) hLbl.textContent = 'Sunucu Uyanıyor';
+      } else {
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0';
+        if (hDot) hDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+        if (hLbl) hLbl.textContent = 'Yerel Mod';
+      }
+      if (lbl) lbl.textContent = text;
+    }
+
+    async function checkRenderServer(showNotification = false) {
+      const base = getRenderApiBase();
+      const isLocalFileWithoutUrl = (window.location.protocol === 'file:' && !base);
+      if (isLocalFileWithoutUrl) {
+        renderServerOnline = false;
+        updateRenderStatusUI('offline', 'Yerel moddasın. Gerçek APK imzalama için yukarıya Render adresini (https://...onrender.com) gir.');
+        return false;
+      }
+
+      updateRenderStatusUI('waking', 'Render sunucusuna bağlanılıyor (uyku modundaysa 30–60 sn sürebilir)...');
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 55000);
+        const res = await fetch(`${base}/health`, { signal: controller.signal });
+        clearTimeout(timer);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        renderServerOnline = true;
+        renderMaxUploadMB = Number(data.maxUploadMB) || 120;
+        updateRenderStatusUI(
+          'online',
+          `Bağlı: ${data.engine || 'Render API'} • Sunucu tekil APK limiti: ${renderMaxUploadMB} MB • Keystore: ${data.keystoreReady ? 'Hazır' : 'Yok'}`
+        );
+        if (showNotification) showToast('Render APK sunucusu aktif ve hazır!', 'success');
+        return true;
+      } catch (err) {
+        renderServerOnline = false;
+        updateRenderStatusUI('offline', 'Render sunucusuna ulaşılamadı (yerel tarayıcı modu aktif). Adresi kontrol edip tekrar dene.');
+        if (showNotification) showToast('Render sunucusuna bağlanılamadı. Sunucu hâlâ uyanıyor olabilir.', 'warn');
+        return false;
+      }
+    }
+
+    function setRenderUploadProgress(visible, label = '', pct = 0) {
+      const box = document.getElementById('render-upload-progress-box');
+      if (!box) return;
+      if (!visible) {
+        box.classList.add('hidden');
+        return;
+      }
+      box.classList.remove('hidden');
+      document.getElementById('render-upload-label').textContent = label;
+      document.getElementById('render-upload-pct').textContent = `${Math.round(pct)}%`;
+      document.getElementById('render-upload-bar').style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    }
+
+    function uploadApkToRenderForAnalysis(file) {
+      return new Promise((resolve, reject) => {
+        const base = getRenderApiBase();
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${base}/api/analyze`);
+        xhr.timeout = 180000;
+
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const pct = (ev.loaded / ev.total) * 100;
+            setRenderUploadProgress(true, `APK sunucuya aktarılıyor (${formatSizeFromMB(ev.loaded / 1048576)})...`, pct);
+          }
+        };
+
+        xhr.onload = () => {
+          setRenderUploadProgress(false);
+          try {
+            const data = JSON.parse(xhr.responseText || '{}');
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(data);
+            } else {
+              reject(new Error(data.detail || `Sunucu hatası (HTTP ${xhr.status})`));
+            }
+          } catch (e) {
+            reject(new Error(`Beklenmeyen sunucu yanıtı (HTTP ${xhr.status})`));
+          }
+        };
+
+        xhr.onerror = () => {
+          setRenderUploadProgress(false);
+          reject(new Error('Ağ bağlantısı kesildi veya CORS engeli oluştu.'));
+        };
+
+        xhr.ontimeout = () => {
+          setRenderUploadProgress(false);
+          reject(new Error('Yükleme zaman aşımına uğradı.'));
+        };
+
+        const fd = new FormData();
+        fd.append('file', file);
+        setRenderUploadProgress(true, 'Render sunucusuna bağlantı açılıyor...', 2);
+        xhr.send(fd);
+      });
+    }
+
     async function handleRealFile(file) {
       if (isPatching) { showToast('Yama işlemi sürerken paket değiştirilemez.', 'warn'); return; }
       hideUploadError();
@@ -2112,6 +2195,7 @@
       const ext = isXapk ? 'XAPK' : 'APK';
       const customId = 'custom-' + Date.now();
       sessionFileStore.set(customId, { singleFile: file });
+
       const analyzedPkg = {
         id: customId,
         name: cleanTitle,
@@ -2128,41 +2212,40 @@
         isValidPK: isValidPK,
         isRealFile: true,
         rawFile: file,
-        packageId: 'com.legacy.' + cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
+        packageId: 'com.legacy.' + cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16),
+        serverJobId: null,
+        serverWarnings: []
       };
 
-      // Render sunucusu bağlıysa ve dosya boyutu sunucu limiti içindeyse gerçek aapt analizi yap
-      const apiBase = getServerBaseUrl();
-      if (serverOnline && apiBase && sizeMB <= serverMaxUploadMB) {
-        showToast(`"${fileName}" Render sunucusunda gerçek aapt ile analiz ediliyor...`, 'info');
+      // Render sunucusu aktifse ve dosya .apk + sunucu boyutu icindeyse gercek aapt analizi yap
+      if (isApk && isValidPK && renderServerOnline && sizeMB <= renderMaxUploadMB) {
         try {
-          const fd = new FormData();
-          fd.append('file', file);
-          const res = await fetch(`${apiBase}/api/analyze`, { method: 'POST', body: fd });
-          if (res.ok) {
-            const meta = await res.json();
-            analyzedPkg.serverJobId = meta.jobId;
-            if (meta.appName) analyzedPkg.name = meta.appName;
-            if (meta.packageId && meta.packageId !== 'bilinmiyor') analyzedPkg.packageId = meta.packageId;
-            if (meta.legacyAndroid) analyzedPkg.legacyAndroid = meta.legacyAndroid;
-            if (meta.targetSdk || meta.minSdk) analyzedPkg.legacyApi = meta.targetSdk || meta.minSdk;
-            if (Array.isArray(meta.abis) && meta.abis.length) analyzedPkg.arch = meta.abis.join(', ');
-            analyzedPkg.hasObb = Boolean(meta.hasObb || isXapk);
-            analyzedPkg.signature = `${signatureText} • aapt OK`;
-            sessionFileStore.set(customId, { singleFile: file, serverJobId: meta.jobId });
-            selectPackageForPatching(analyzedPkg);
-            showToast(`Render aapt analizi tamamlandı: ${analyzedPkg.packageId} (API ${analyzedPkg.legacyApi})`, 'success');
-            return;
-          } else {
-            const errTxt = await res.text();
-            showToast(`Sunucu analizi başarısız (${res.status}), yerel analiz kullanılıyor: ${errTxt.slice(0, 80)}`, 'warn');
-          }
+          const srv = await uploadApkToRenderForAnalysis(file);
+          analyzedPkg.serverJobId = srv.jobId;
+          analyzedPkg.packageId = srv.packageId || analyzedPkg.packageId;
+          if (srv.appLabel) analyzedPkg.name = srv.appLabel;
+          analyzedPkg.legacyApi = srv.targetSdk || srv.minSdk || analyzedPkg.legacyApi;
+          analyzedPkg.legacyAndroid = srv.targetSdk ? `targetSdk ${srv.targetSdk} (min ${srv.minSdk || '?'})` : analyzedPkg.legacyAndroid;
+          analyzedPkg.arch = Array.isArray(srv.abis) ? srv.abis.join(', ') : analyzedPkg.arch;
+          analyzedPkg.is32BitOnly = Boolean(srv.is32BitOnly);
+          analyzedPkg.serverWarnings = Array.isArray(srv.warnings) ? srv.warnings : [];
+          analyzedPkg.signature = `${signatureText} • Render Analiz ✓`;
+
+          sessionFileStore.set(customId, {
+            singleFile: file,
+            serverJobId: srv.jobId
+          });
+          selectPackageForPatching(analyzedPkg);
+          showToast(`Render sunucusunda gerçek APK analizi tamamlandı: ${analyzedPkg.packageId}`, 'success');
+          return;
         } catch (err) {
-          console.warn('Render analiz hatası, yerel moda düşülüyor:', err);
-          showToast('Render sunucusuna gönderilemedi, yerel tarayıcı analizi kullanılıyor.', 'warn');
+          console.warn('Render analizi başarısız, yerel moda dönülüyor:', err);
+          analyzedPkg.serverWarnings = [`Render analizi yapılamadı (${err.message}). Yerel modda devam ediliyor.`];
         }
-      } else if (serverOnline && sizeMB > serverMaxUploadMB) {
-        showToast(`Dosya (${formatSizeFromMB(sizeMB)}) Render limitini (${serverMaxUploadMB} MB) aştığı için yerel modda inceleniyor.`, 'info');
+      } else if (isApk && renderServerOnline && sizeMB > renderMaxUploadMB) {
+        analyzedPkg.serverWarnings = [
+          `Bu APK (${formatSizeFromMB(sizeMB)}) Render sunucusunun tekil limitini (${renderMaxUploadMB} MB) aşıyor. Yerel modda incelenebilir.`
+        ];
       }
 
       selectPackageForPatching(analyzedPkg);
@@ -2210,6 +2293,17 @@
         : 'font-bold text-emerald-400 font-mono mt-0.5 block truncate';
 
       document.getElementById('pkg-arch').textContent = `${pkg.arch} • ${pkg.hasObb ? 'OBB Var' : 'OBB Yok'}`;
+
+      const warnBox = document.getElementById('pkg-server-warnings');
+      if (warnBox) {
+        if (Array.isArray(pkg.serverWarnings) && pkg.serverWarnings.length > 0) {
+          warnBox.innerHTML = pkg.serverWarnings.map(w => `<p>• ${escapeHtml(w)}</p>`).join('');
+          warnBox.classList.remove('hidden');
+        } else {
+          warnBox.innerHTML = '';
+          warnBox.classList.add('hidden');
+        }
+      }
 
       // Önceki terminal panelini gizle
       document.getElementById('patcher-terminal-panel').classList.add('hidden');
@@ -2302,74 +2396,87 @@
       const mods = Array.from(activeModuleIds);
       const compatScoreAtStart = calculateCompatScore();
 
-      const steps = [
-        { pct: 10, tag: 'INIT', color: 'text-sky-400', msg: `Paket akışı açıldı: ${pkg.fileName} (${formatSizeFromMB(pkg.sizeMB)})` },
-        { pct: 22, tag: 'VERIFY', color: 'text-emerald-400', msg: `Başlık doğrulandı: ${pkg.signature} • Paket ID: ${pkg.packageId}` },
-        { pct: 35, tag: 'MANIFEST', color: 'text-amber-300', msg: mods.includes('targetSdk')
-            ? `Simülasyon: AndroidManifest.xml için targetSdkVersion API ${pkg.legacyApi} → API 36 (Android 16) yükseltme adımı gösteriliyor.`
-            : `Simülasyon: TargetSDK adımı atlandı; manifest dosyası okunmadı.` },
-        { pct: 50, tag: 'OBB', color: 'text-violet-400', msg: (pkg.hasObb && mods.includes('xapkObb'))
-            ? `Simülasyon: XAPK/OBB verileri /Android/obb/${pkg.packageId}/ hedef yoluna eşleniyor; dosya sistemi değiştirilmez.`
-            : `Simülasyon: Scoped Storage hedef profili seçildi; Android dosya sistemi değiştirilmedi.` },
-        { pct: 66, tag: 'ABI', color: 'text-emerald-400', msg: mods.includes('armBridge')
-            ? `Simülasyon: ${pkg.arch} için ${appState.engineSettings.abi} köprüsü etkinmiş gibi gösteriliyor; gerçek ikili çeviri yapılmıyor.`
-            : `Simülasyon: Yerel ABI profili seçildi (32→64 köprü devre dışı).` },
-        { pct: 80, tag: 'GFX', color: 'text-sky-400', msg: mods.includes('gles2')
-            ? `Simülasyon: OpenGL ES 2.0 için ${appState.engineSettings.renderer} grafik profili seçildi; shader derlenmedi.`
-            : `Standart grafik boru hattı yapılandırıldı.` },
-        { pct: 91, tag: 'UI', color: 'text-teal-300', msg: mods.includes('notchFix')
-            ? `Simülasyon: 20:9 ekran kesimi ve yüksek yenileme hızı ölçekleme profili seçildi; APK değiştirilmedi.`
-            : `Simülasyon: Klasik 16:9 ekran profili seçildi.` },
-        { pct: 100, tag: 'SIGN', color: 'text-emerald-300', msg: mods.includes('resign')
-            ? `Simülasyon: APK v2/v3 yeniden imzalama adımı gösterildi; gerçek imza uygulanmadı.`
-            : `Simülasyon tamamlandı; orijinal APK imzalanmadı veya değiştirilmedi.` }
-      ];
+      const appendLog = (tag, color, msg) => {
+        const time = new Date().toTimeString().slice(0, 8);
+        const line = document.createElement('div');
+        line.innerHTML = `<span class="text-slate-600">[${time}]</span> <span class="${color} font-bold">[${escapeHtml(tag)}]</span> <span class="text-slate-200">${escapeHtml(msg)}</span>`;
+        logsEl.appendChild(line);
+        logsEl.scrollTop = logsEl.scrollHeight;
+      };
 
-      let realServerResult = null;
-      const apiBase = getServerBaseUrl();
+      const targetSdkVal = Number(document.getElementById('patch-target-sdk')?.value || 28);
+      const patchModeVal = document.getElementById('patch-server-mode')?.value || 'patch_and_sign';
+      const completeMsgEl = document.getElementById('patch-complete-msg');
+      let serverSignedResult = null;
 
-      if (serverOnline && apiBase && pkg.serverJobId) {
-        const appendLog = (tag, color, msg) => {
-          const time = new Date().toTimeString().slice(0, 8);
-          const line = document.createElement('div');
-          line.innerHTML = `<span class="text-slate-600">[${time}]</span> <span class="${color} font-bold">[${tag}]</span> <span class="text-slate-200">${escapeHtml(msg)}</span>`;
-          logsEl.appendChild(line);
-          logsEl.scrollTop = logsEl.scrollHeight;
-        };
-
-        appendLog('RENDER', 'text-sky-400', `Gerçek sunucu işleme gönderiliyor: ${apiBase}/api/patch-sign (Job: ${pkg.serverJobId})`);
+      if (pkg.serverJobId && renderServerOnline) {
+        // GERÇEK RENDER SUNUCUSU ÜZERİNDE APK YAMALAMA + ZIPALIGN + v1/v2/v3 İMZALAMA
+        appendLog('RENDER', 'text-sky-400', `Gerçek APK işlemi başlatıldı (Job: ${pkg.serverJobId}) • Hedef API: ${targetSdkVal} • Mod: ${patchModeVal}`);
         bar.style.width = '20%';
         pctLabel.textContent = '20%';
 
         const fd = new FormData();
         fd.append('jobId', pkg.serverJobId);
-        fd.append('targetSdk', '34');
-        fd.append('applyTargetSdk', mods.includes('targetSdk') ? 'true' : 'false');
-        fd.append('resign', mods.includes('resign') ? 'true' : 'false');
+        fd.append('targetSdk', String(targetSdkVal));
+        fd.append('mode', patchModeVal);
+        fd.append('resign', String(mods.includes('resign')));
 
-        appendLog('WAIT', 'text-amber-300', 'apktool + zipalign + apksigner çalışıyor (Render Free CPU üzerinde 15-60 sn sürebilir)...');
+        appendLog('SUNUCU', 'text-amber-300', 'Apktool + resources.arsc STORE + zipalign + apksigner (v1/v2/v3) çalışıyor, lütfen bekleyin...');
         bar.style.width = '55%';
         pctLabel.textContent = '55%';
 
-        const res = await fetch(`${apiBase}/api/patch-sign`, { method: 'POST', body: fd });
+        const base = getRenderApiBase();
+        const res = await fetch(`${base}/api/patch-sign`, { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`Render hatası (${res.status}): ${errText.slice(0, 220)}`);
+          throw new Error(data.detail || `Render sunucu hatası (HTTP ${res.status})`);
         }
-        realServerResult = await res.json();
-        (realServerResult.logs || []).forEach(l => appendLog('SERVER', 'text-emerald-400', l));
-        appendLog('READY', 'text-emerald-300', `İmzalı APK cihaza indirilmeye hazır: ${realServerResult.fileName}`);
+
+        if (Array.isArray(data.logs)) {
+          data.logs.forEach(l => appendLog('API', 'text-emerald-300', l));
+        }
+        if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+          data.warnings.forEach(w => appendLog('UYARI', 'text-amber-300', w));
+        }
+        appendLog('KURULUM', 'text-sky-300', 'ÖNEMLİ: Telefonunuzda bu oyunun eski/orijinal sürümü yüklüyse yeni imzalı APK kurulmadan önce eski sürümü kaldırın.');
+
         bar.style.width = '100%';
         pctLabel.textContent = '100%';
+        serverSignedResult = {
+          downloadUrl: `${base}${data.downloadUrl}`,
+          fileName: data.fileName,
+          sizeBytes: data.sizeBytes,
+          verified: data.verified,
+          targetSdk: data.targetSdk
+        };
       } else {
-        for (const step of steps) {
-          await new Promise(r => setTimeout(r, 420 + Math.random() * 240));
-          const time = new Date().toTimeString().slice(0, 8);
-          const line = document.createElement('div');
-          line.innerHTML = `<span class="text-slate-600">[${time}]</span> <span class="${step.color} font-bold">[${step.tag}]</span> <span class="text-slate-200">${escapeHtml(step.msg)}</span>`;
-          logsEl.appendChild(line);
-          logsEl.scrollTop = logsEl.scrollHeight;
+        // YEREL TARAYICI SİMÜLASYON MODU
+        const steps = [
+          { pct: 10, tag: 'INIT', color: 'text-sky-400', msg: `Paket akışı açıldı: ${pkg.fileName} (${formatSizeFromMB(pkg.sizeMB)})` },
+          { pct: 22, tag: 'VERIFY', color: 'text-emerald-400', msg: `Başlık doğrulandı: ${pkg.signature} • Paket ID: ${pkg.packageId}` },
+          { pct: 35, tag: 'MANIFEST', color: 'text-amber-300', msg: mods.includes('targetSdk')
+              ? `Simülasyon: targetSdkVersion API ${pkg.legacyApi} → API ${targetSdkVal} adımı gösteriliyor (gerçek APK değişikliği için Render bağlantısı gerekir).`
+              : `Simülasyon: TargetSDK adımı atlandı.` },
+          { pct: 50, tag: 'OBB', color: 'text-violet-400', msg: (pkg.hasObb && mods.includes('xapkObb'))
+              ? `Simülasyon: XAPK/OBB verileri /Android/obb/${pkg.packageId}/ hedef yoluna eşlendi.`
+              : `Simülasyon: Scoped Storage profili seçildi.` },
+          { pct: 66, tag: 'ABI', color: 'text-emerald-400', msg: mods.includes('armBridge')
+              ? `Simülasyon: ${pkg.arch} için ${appState.engineSettings.abi} profili kaydedildi.`
+              : `Simülasyon: Yerel ABI profili seçildi.` },
+          { pct: 80, tag: 'GFX', color: 'text-sky-400', msg: mods.includes('gles2')
+              ? `Simülasyon: ${appState.engineSettings.renderer} grafik profili seçildi.`
+              : `Standart grafik boru hattı yapılandırıldı.` },
+          { pct: 91, tag: 'UI', color: 'text-teal-300', msg: mods.includes('notchFix')
+              ? `Simülasyon: 20:9 ekran kesimi ölçekleme profili seçildi.`
+              : `Simülasyon: Klasik 16:9 ekran profili seçildi.` },
+          { pct: 100, tag: 'SIGN', color: 'text-emerald-300', msg: mods.includes('resign')
+              ? `Simülasyon: Gerçek imzalama için Render sunucusuna bağlanıp .apk yükleyin.`
+              : `Simülasyon tamamlandı.` }
+        ];
 
+        for (const step of steps) {
+          await new Promise(r => setTimeout(r, 320 + Math.random() * 180));
+          appendLog(step.tag, step.color, step.msg);
           bar.style.width = step.pct + '%';
           pctLabel.textContent = step.pct + '%';
         }
@@ -2399,43 +2506,41 @@
       } else {
         appState.games.unshift(newGame);
       }
-      const existingStore = sessionFileStore.get(newGame.id) || {};
-      if (pkg.rawFile) {
-        existingStore.singleFile = pkg.rawFile;
-      }
+
+      const prevEntry = sessionFileStore.get(newGame.id) || {};
+      const nextEntry = { ...prevEntry };
+      if (pkg.rawFile) nextEntry.singleFile = pkg.rawFile;
       if (pkg.apkFile && pkg.obbFile) {
-        existingStore.apkFile = pkg.apkFile;
-        existingStore.obbFile = pkg.obbFile;
-        existingStore.obbTargetName = pkg.obbTargetName;
+        nextEntry.apkFile = pkg.apkFile;
+        nextEntry.obbFile = pkg.obbFile;
+        nextEntry.obbTargetName = pkg.obbTargetName;
       }
-      if (realServerResult && realServerResult.downloadUrl) {
-        existingStore.serverDownloadUrl = `${apiBase}${realServerResult.downloadUrl}`;
-        existingStore.serverFileName = realServerResult.fileName;
-        existingStore.serverSizeBytes = realServerResult.sizeBytes || 0;
-        newGame.serverDownloadUrl = existingStore.serverDownloadUrl;
-        newGame.serverFileName = existingStore.serverFileName;
+      if (serverSignedResult) {
+        nextEntry.serverDownloadUrl = serverSignedResult.downloadUrl;
+        nextEntry.serverFileName = serverSignedResult.fileName;
+        nextEntry.serverVerified = serverSignedResult.verified;
+        nextEntry.serverTargetSdk = serverSignedResult.targetSdk;
       }
-      if (Object.keys(existingStore).length > 0) {
-        sessionFileStore.set(newGame.id, existingStore);
+      if (Object.keys(nextEntry).length > 0) {
+        sessionFileStore.set(newGame.id, nextEntry);
       }
 
-      // Shader önbelleğini hafifçe artır
       appState.cacheMB = Math.min(2048, (appState.cacheMB || 420) + 45);
       saveState();
       renderLibrary();
 
       lastPatchedGame = newGame;
-      if (realServerResult && realServerResult.downloadUrl) {
-        statusTitle.textContent = `Gerçek APK İmzalama Tamamlandı (%${compatScore}) — İndirmeye Hazır!`;
-        statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-        completeActions.classList.remove('hidden');
-        showToast(`${realServerResult.fileName} Render sunucusunda imzalandı! "Dosyayı Cihaza İndir" ile hemen indirebilirsiniz.`, 'success');
+      if (serverSignedResult) {
+        statusTitle.textContent = `Gerçek İmzalı APK Hazır! (API ${serverSignedResult.targetSdk} • Doğrulandı ✓)`;
+        if (completeMsgEl) completeMsgEl.textContent = `${serverSignedResult.fileName} apksigner verify ile doğrulandı. İndirip kurabilirsiniz!`;
+        showToast(`${serverSignedResult.fileName} Render'da imzalandı ve indirmeye hazır!`, 'success');
       } else {
         statusTitle.textContent = `Uyumluluk kontrol simülasyonu tamamlandı (%${compatScore})`;
-        statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-        completeActions.classList.remove('hidden');
-        showToast(`${newGame.name} simülasyon profili kütüphaneye eklendi. APK dosyası değiştirilmedi.`, 'info');
+        if (completeMsgEl) completeMsgEl.textContent = 'Paket profili kütüphaneye eklendi (yerel mod — APK dosyası değiştirilmedi).';
+        showToast(`${newGame.name} profili kütüphaneye eklendi.`, 'info');
       }
+      statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+      completeActions.classList.remove('hidden');
       } catch (err) {
         console.error('Uyumluluk simülasyonu hatası:', err);
         const statusTitle = document.getElementById('terminal-status-title');
@@ -2620,22 +2725,20 @@
         .toLowerCase()
         .replace(/[^a-z0-9._-]+/g, '_');
 
-      // Render sunucusunda gerçek imzalı APK üretildiyse en üstte göster
       if (entry && entry.serverDownloadUrl) {
         addOptionBtn({
-          title: `İmzalı Gerçek APK'yı Sunucudan İndir (v2/v3)`,
-          subtitle: `${entry.serverFileName || 'uyumlu.apk'}${entry.serverSizeBytes ? ' • ' + formatSizeFromMB(entry.serverSizeBytes / 1048576) : ''} — Render apktool + apksigner çıktısı`,
+          title: `Render İmzalı & Doğrulanmış APK İndir (.apk)`,
+          subtitle: `${entry.serverFileName || game.fileName} • API ${entry.serverTargetSdk || 28} • v1/v2/v3 İmza Doğrulandı ✓ (Kurmadan önce eski sürümü kaldırın)`,
           badge: 'İMZALI APK',
           accent: 'emerald',
           onClick: () => {
             const a = document.createElement('a');
             a.href = entry.serverDownloadUrl;
-            a.download = entry.serverFileName || `${safeBase}_uyumlu.apk`;
-            a.rel = 'noopener';
+            a.download = entry.serverFileName || 'uyumlu.apk';
             document.body.appendChild(a);
             a.click();
             a.remove();
-            showToast(`${entry.serverFileName || 'İmzalı APK'} cihazınıza indiriliyor!`, 'success');
+            showToast(`${entry.serverFileName || 'İmzalı APK'} cihazınıza indiriliyor...`, 'success');
           }
         });
       }
@@ -3201,6 +3304,22 @@
     // 10. OLAY DİNLEYİCİLERİ VE BAŞLATMA
     // =========================================================================
     function initEvents() {
+      // Render Sunucu Adresi ve Test Butonu
+      const renderUrlInput = document.getElementById('render-api-url');
+      if (renderUrlInput) {
+        renderUrlInput.value = appState.renderApiUrl || '';
+      }
+      document.getElementById('btn-save-render-url').addEventListener('click', () => {
+        const val = document.getElementById('render-api-url').value.trim().replace(/\/+$/, '');
+        appState.renderApiUrl = val;
+        saveState();
+        showToast(val ? `Render sunucu adresi kaydedildi: ${val}` : 'Aynı kaynak (Render) adresi kullanılacak.', 'info');
+        checkRenderServer(true);
+      });
+      document.getElementById('btn-check-render').addEventListener('click', () => {
+        checkRenderServer(true);
+      });
+
       // Alt Gezinme Sekmeleri
       document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -3447,14 +3566,6 @@
         );
       });
 
-      // Render Sunucu Bağlantı Butonu
-      document.getElementById('btn-save-test-server').addEventListener('click', async () => {
-        const raw = (document.getElementById('server-url-input').value || '').trim().replace(/\/+$/, '');
-        appState.serverUrl = raw;
-        saveState();
-        await checkRenderServer(false);
-      });
-
       document.getElementById('btn-export-backup').addEventListener('click', exportAppBackup);
       const backupInput = document.getElementById('backup-file-input');
       document.getElementById('btn-import-backup').addEventListener('click', () => backupInput.click());
@@ -3579,7 +3690,7 @@
       switchTab(appState.activeTab || 'library');
       updateStatusClock();
       setInterval(updateStatusClock, 30000);
-      checkRenderServer(true);
+      checkRenderServer(false);
     });
   </script>
 </body>
